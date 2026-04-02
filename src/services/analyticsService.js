@@ -3,38 +3,39 @@ const { supabaseAdmin } = require('../config/supabase');
 async function getOverview() {
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
+  const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split('T')[0];
 
   const [
     { count: totalUsers },
-    { count: totalProfessionals },
-    { count: dau },
-    { count: mau },
+    { count: activeToday },
+    { count: newThisWeek },
     { count: totalMatches },
     { count: totalMessages },
-    { count: pendingReports },
+    { count: bannedUsers },
+    { count: verifiedUsers },
+    { count: mau },
   ] = await Promise.all([
     supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }),
-    supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }).eq('user_type', 'professional'),
     supabaseAdmin.from('checkins').select('user_id', { count: 'exact', head: true }).eq('date', todayStr),
-    supabaseAdmin.from('checkins').select('user_id', { count: 'exact', head: true }).gte('date', monthStart.split('T')[0]),
+    supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo.toISOString()),
     supabaseAdmin.from('matches').select('id', { count: 'exact', head: true }),
     supabaseAdmin.from('messages').select('id', { count: 'exact', head: true }),
-    supabaseAdmin.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }).eq('is_banned', true),
+    supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }).eq('is_verified', true),
+    supabaseAdmin.from('checkins').select('user_id', { count: 'exact', head: true }).gte('date', monthStart.split('T')[0]),
   ]);
 
   return {
-    total_users:          totalUsers,
-    total_professionals:  totalProfessionals,
-    total_individuals:    totalUsers - totalProfessionals,
-    dau,
+    total_users:    totalUsers,
+    active_today:   activeToday,
+    new_this_week:  newThisWeek,
+    total_matches:  totalMatches,
+    total_messages: totalMessages,
+    banned_users:   bannedUsers,
+    verified_users: verifiedUsers,
     mau,
-    total_matches:        totalMatches,
-    total_messages:       totalMessages,
-    pending_reports:      pendingReports,
-    as_of:                now.toISOString(),
+    as_of:          now.toISOString(),
   };
 }
 
@@ -60,10 +61,10 @@ async function getDailyActiveUsers(days) {
 
   const result = Object.entries(byDate).map(([date, users]) => ({
     date,
-    active_users: users.size,
+    count: users.size,
   }));
 
-  return { dau: result, days };
+  return { data: result, days };
 }
 
 async function getMonthlyActiveUsers(months) {
@@ -155,8 +156,8 @@ async function getUserGrowth(days) {
     byDate[date] = (byDate[date] || 0) + 1;
   }
 
-  const growth = Object.entries(byDate).map(([date, new_users]) => ({ date, new_users }));
-  return { growth, days, total_new: (data || []).length };
+  const growth = Object.entries(byDate).map(([date, new_users]) => ({ date, count: new_users }));
+  return { data: growth, days, total_new: (data || []).length };
 }
 
 async function getMatchStats(days) {
