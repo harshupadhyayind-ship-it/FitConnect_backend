@@ -29,7 +29,7 @@ async function registerOrFetchUser(firebaseUid, { email, phone, name }) {
   // Check if profile exists
   const { data: existing } = await supabaseAdmin
     .from('profiles')
-    .select('id, onboarding_completed, user_type')
+    .select('id, onboarding_completed, user_type, is_admin')
     .eq('id', firebaseUid)
     .single();
 
@@ -39,6 +39,7 @@ async function registerOrFetchUser(firebaseUid, { email, phone, name }) {
       is_new_user:           false,
       onboarding_completed:  existing.onboarding_completed,
       user_type:             existing.user_type,
+      is_admin:              existing.is_admin || false,
     };
   }
 

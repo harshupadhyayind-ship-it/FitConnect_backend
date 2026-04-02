@@ -12,7 +12,19 @@ const fastify = require('fastify')({
 fastify.register(require('@fastify/helmet'));
 
 fastify.register(require('@fastify/cors'), {
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || true,
+  origin: (origin, cb) => {
+    // Allow requests with no origin (mobile apps, Postman, curl)
+    if (!origin) return cb(null, true);
+
+    const allowed = [
+      'http://localhost:5173',   // Admin panel dev
+      'http://localhost:4173',   // Admin panel preview
+      ...(process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || []),
+    ];
+
+    if (allowed.includes(origin)) return cb(null, true);
+    cb(new Error('CORS: origin not allowed'), false);
+  },
   credentials: true,
 });
 
