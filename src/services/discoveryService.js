@@ -6,12 +6,12 @@ const { computeScore, haversineKm } = require('./scoringService');
  * Excludes: self, already-liked users, already-matched users.
  */
 async function discoverUsers(userId, filters) {
-  const { fitness_goal, distance_km, gender, page, limit } = filters;
+  const { fitness_goal, workout_type, distance_km, gender, page, limit } = filters;
 
   // 1. Get requester's profile
   const { data: me } = await supabaseAdmin
     .from('profiles')
-    .select('id, fitness_goals, fitness_level, latitude, longitude, preferred_gender_filter')
+    .select('id, fitness_goals, fitness_level, workout_types, latitude, longitude, preferred_gender_filter')
     .eq('id', userId)
     .single();
 
@@ -30,7 +30,7 @@ async function discoverUsers(userId, filters) {
   // 3. Build query
   let query = supabaseAdmin
     .from('profiles')
-    .select('id, name, bio, avatar_url, fitness_goals, fitness_level, gender, current_streak, latitude, longitude')
+    .select('id, name, bio, avatar_url, fitness_goals, fitness_level, workout_types, gender, current_streak, latitude, longitude')
     .eq('onboarding_completed', true)
     .not('id', 'in', `(${[...excludeIds].join(',')})`);
 
@@ -45,6 +45,11 @@ async function discoverUsers(userId, filters) {
   // Fitness goal filter
   if (fitness_goal) {
     query = query.contains('fitness_goals', [fitness_goal]);
+  }
+
+  // Workout type filter
+  if (workout_type) {
+    query = query.contains('workout_types', [workout_type]);
   }
 
   const { data: candidates, error } = await query.limit(200); // fetch broad set, score & sort

@@ -5,7 +5,7 @@ async function getProfile(userId) {
     .from('profiles')
     .select(`
       id, name, bio, avatar_url, user_type,
-      fitness_goals, fitness_level, gender,
+      fitness_goals, fitness_level, workout_types, gender,
       height_cm, weight_kg, preferred_gender_filter,
       specialty, credentials,
       current_streak, longest_streak, total_checkins,
@@ -21,7 +21,7 @@ async function getProfile(userId) {
 
 async function onboardIndividual(userId, body) {
   const {
-    name, date_of_birth, gender, fitness_goals, fitness_level,
+    name, date_of_birth, gender, fitness_goals, fitness_level, workout_types,
     height_cm, weight_kg, preferred_gender_filter, bio, latitude, longitude,
   } = body;
 
@@ -30,7 +30,7 @@ async function onboardIndividual(userId, body) {
     .upsert({
       id: userId,
       user_type: 'individual',
-      name, date_of_birth, gender, fitness_goals, fitness_level,
+      name, date_of_birth, gender, fitness_goals, fitness_level, workout_types,
       height_cm, weight_kg, preferred_gender_filter: preferred_gender_filter || 'everyone',
       bio, latitude, longitude,
       onboarding_completed: true,
@@ -65,7 +65,7 @@ async function onboardProfessional(userId, body) {
 async function updateProfile(userId, updates) {
   // Only allow safe fields to be updated
   const allowed = [
-    'name', 'bio', 'fitness_goals', 'fitness_level', 'height_cm', 'weight_kg',
+    'name', 'bio', 'fitness_goals', 'fitness_level', 'workout_types', 'height_cm', 'weight_kg',
     'preferred_gender_filter', 'latitude', 'longitude', 'specialty', 'credentials',
   ];
   const sanitized = {};

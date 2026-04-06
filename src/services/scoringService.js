@@ -3,16 +3,18 @@
  *
  * Scores range 0–100. Higher = more compatible.
  * Weights:
- *   - Shared fitness goals  : 50 pts
- *   - Matching fitness level: 25 pts
- *   - Activity recency      : 15 pts  (based on current_streak)
- *   - Distance proximity    : 10 pts
+ *   - Shared fitness goals   : 35 pts
+ *   - Shared workout types   : 25 pts
+ *   - Matching fitness level : 20 pts
+ *   - Activity recency       : 12 pts  (based on current_streak)
+ *   - Distance proximity     : 8 pts
  */
 
-const GOAL_WEIGHT      = 50;
-const LEVEL_WEIGHT     = 25;
-const ACTIVITY_WEIGHT  = 15;
-const DISTANCE_WEIGHT  = 10;
+const GOAL_WEIGHT     = 35;
+const WORKOUT_WEIGHT  = 25;
+const LEVEL_WEIGHT    = 20;
+const ACTIVITY_WEIGHT = 12;
+const DISTANCE_WEIGHT = 8;
 
 const LEVEL_ORDER = { beginner: 0, intermediate: 1, advanced: 2 };
 
@@ -29,11 +31,18 @@ function computeScore(me, target, distanceKm) {
   // 1. Shared fitness goals
   const myGoals     = new Set(me.fitness_goals     || []);
   const theirGoals  = new Set(target.fitness_goals || []);
-  const sharedCount = [...myGoals].filter(g => theirGoals.has(g)).length;
-  const totalUnique = new Set([...myGoals, ...theirGoals]).size || 1;
-  score += (sharedCount / totalUnique) * GOAL_WEIGHT;
+  const sharedGoals = [...myGoals].filter(g => theirGoals.has(g)).length;
+  const totalGoals  = new Set([...myGoals, ...theirGoals]).size || 1;
+  score += (sharedGoals / totalGoals) * GOAL_WEIGHT;
 
-  // 2. Fitness level compatibility (adjacent levels score partial credit)
+  // 2. Shared workout types
+  const myWorkouts     = new Set(me.workout_types     || []);
+  const theirWorkouts  = new Set(target.workout_types || []);
+  const sharedWorkouts = [...myWorkouts].filter(w => theirWorkouts.has(w)).length;
+  const totalWorkouts  = new Set([...myWorkouts, ...theirWorkouts]).size || 1;
+  score += myWorkouts.size > 0 ? (sharedWorkouts / totalWorkouts) * WORKOUT_WEIGHT : 0;
+
+  // 3. Fitness level compatibility (adjacent levels score partial credit)
   const myLevel  = LEVEL_ORDER[me.fitness_level]     ?? 1;
   const theirLvl = LEVEL_ORDER[target.fitness_level] ?? 1;
   const diff     = Math.abs(myLevel - theirLvl);

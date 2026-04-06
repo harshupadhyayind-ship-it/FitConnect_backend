@@ -26,6 +26,7 @@ module.exports = async function profileRoutes(fastify) {
           gender:                  { type: 'string', enum: ['male', 'female', 'non_binary', 'prefer_not_to_say'] },
           fitness_goals:           { type: 'array', items: { type: 'string' } },
           fitness_level:           { type: 'string', enum: ['beginner', 'intermediate', 'advanced'] },
+          workout_types:           { type: 'array', items: { type: 'string' } },
           height_cm:               { type: 'number' },
           weight_kg:               { type: 'number' },
           preferred_gender_filter: { type: 'string', enum: ['everyone', 'men', 'women', 'women_only'] },

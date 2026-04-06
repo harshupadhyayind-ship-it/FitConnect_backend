@@ -7,11 +7,12 @@ module.exports = async function exploreRoutes(fastify) {
   fastify.get('/people', auth, async (request) => {
     const q = request.query;
     const filters = {
-      fitness_goal: q.fitness_goal,
-      distance_km:  parseFloat(q.distance_km) || 50,
-      gender:       q.gender,
-      page:         parseInt(q.page)  || 1,
-      limit:        Math.min(parseInt(q.limit) || 20, 50),
+      fitness_goal:  q.fitness_goal,
+      workout_type:  q.workout_type,
+      distance_km:   parseFloat(q.distance_km) || 50,
+      gender:        q.gender,
+      page:          parseInt(q.page)  || 1,
+      limit:         Math.min(parseInt(q.limit) || 20, 50),
     };
     return exploreService.getPeople(request.user.sub, filters);
   });

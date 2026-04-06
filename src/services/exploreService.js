@@ -2,17 +2,17 @@ const { supabaseAdmin } = require('../config/supabase');
 const { computeScore, haversineKm } = require('./scoringService');
 
 async function getPeople(userId, filters) {
-  const { fitness_goal, distance_km, gender, page, limit } = filters;
+  const { fitness_goal, workout_type, distance_km, gender, page, limit } = filters;
 
   const { data: me } = await supabaseAdmin
     .from('profiles')
-    .select('fitness_goals, fitness_level, latitude, longitude')
+    .select('fitness_goals, fitness_level, workout_types, latitude, longitude')
     .eq('id', userId)
     .single();
 
   let query = supabaseAdmin
     .from('profiles')
-    .select('id, name, bio, avatar_url, fitness_goals, fitness_level, gender, current_streak, latitude, longitude')
+    .select('id, name, bio, avatar_url, fitness_goals, fitness_level, workout_types, gender, current_streak, latitude, longitude')
     .eq('onboarding_completed', true)
     .neq('id', userId);
 
@@ -21,6 +21,9 @@ async function getPeople(userId, filters) {
   }
   if (fitness_goal) {
     query = query.contains('fitness_goals', [fitness_goal]);
+  }
+  if (workout_type) {
+    query = query.contains('workout_types', [workout_type]);
   }
 
   const { data: candidates, error } = await query.limit(200);
