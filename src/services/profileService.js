@@ -85,26 +85,169 @@ async function updateProfile(userId, updates) {
   return data;
 }
 
+// ── Photo Management ──────────────────────────────────────────────────────────
+
+const MAX_PHOTOS = 6;
+
+async function getPhotos(userId) {
+  const { data, error } = await supabaseAdmin
+    .from('profile_photos')
+    .select('id, url, position')
+    .eq('user_id', userId)
+    .order('position', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return { photos: data || [] };
+}
+
 async function uploadPhoto(userId, file) {
-  const ext = file.mimetype.split('/')[1] || 'jpg';
-  const path = `avatars/${userId}/profile.${ext}`;
+  // Check current photo count
+  const { count } = await supabaseAdmin
+    .from('profile_photos')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId);
+
+  if (count >= MAX_PHOTOS) {
+    throw Object.assign(new Error(`Maximum ${MAX_PHOTOS} photos allowed. Delete one before uploading.`), { statusCode: 400 });
+  }
+
+  // Find next available position
+  const { data: existing } = await supabaseAdmin
+    .from('profile_photos')
+    .select('position')
+    .eq('user_id', userId)
+    .order('position', { ascending: true });
+
+  const usedPositions = new Set((existing || []).map(p => p.position));
+  let position = 1;
+  while (usedPositions.has(position)) position++;
+
+  // Upload to storage
+  const ext  = file.mimetype.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+  const path = `photos/${userId}/${position}_${Date.now()}.${ext}`;
 
   const { error: uploadError } = await supabaseAdmin.storage
     .from('profile-photos')
-    .upload(path, file.buffer, {
-      contentType: file.mimetype,
-      upsert: true,
-    });
+    .upload(path, file.buffer, { contentType: file.mimetype, upsert: false });
 
   if (uploadError) throw new Error(uploadError.message);
 
   const { data: urlData } = supabaseAdmin.storage.from('profile-photos').getPublicUrl(path);
-  const avatar_url = urlData.publicUrl;
+  const url = urlData.publicUrl;
 
-  // Update profile with new avatar URL
-  await supabaseAdmin.from('profiles').update({ avatar_url }).eq('id', userId);
+  // Insert into profile_photos
+  const { data: photo, error: insertError } = await supabaseAdmin
+    .from('profile_photos')
+    .insert({ user_id: userId, url, position })
+    .select()
+    .single();
 
-  return { avatar_url };
+  if (insertError) throw new Error(insertError.message);
+
+  // If this is position 1, update avatar_url on profile
+  if (position === 1) {
+    await supabaseAdmin.from('profiles').update({ avatar_url: url }).eq('id', userId);
+  }
+
+  return photo;
+}
+
+async function deletePhoto(userId, photoId) {
+  const { data: photo, error: fetchError } = await supabaseAdmin
+    .from('profile_photos')
+    .select('id, url, position')
+    .eq('id', photoId)
+    .eq('user_id', userId)
+    .single();
+
+  if (fetchError || !photo) {
+    throw Object.assign(new Error('Photo not found'), { statusCode: 404 });
+  }
+
+  // Must keep at least 1 photo
+  const { count } = await supabaseAdmin
+    .from('profile_photos')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId);
+
+  if (count <= 1) {
+    throw Object.assign(new Error('Cannot delete your only photo. Upload another one first.'), { statusCode: 400 });
+  }
+
+  // Delete from storage
+  const storagePath = photo.url.split('/profile-photos/')[1];
+  if (storagePath) {
+    await supabaseAdmin.storage.from('profile-photos').remove([storagePath]);
+  }
+
+  // Delete from DB
+  await supabaseAdmin.from('profile_photos').delete().eq('id', photoId);
+
+  // If deleted photo was position 1, promote position 2 → 1 and update avatar_url
+  if (photo.position === 1) {
+    const { data: next } = await supabaseAdmin
+      .from('profile_photos')
+      .select('id, url, position')
+      .eq('user_id', userId)
+      .order('position', { ascending: true })
+      .limit(1)
+      .single();
+
+    if (next) {
+      await supabaseAdmin.from('profile_photos').update({ position: 1 }).eq('id', next.id);
+      await supabaseAdmin.from('profiles').update({ avatar_url: next.url }).eq('id', userId);
+    }
+  }
+
+  return { message: 'Photo deleted' };
+}
+
+async function reorderPhotos(userId, order) {
+  // order: [{ id: 'uuid', position: 1 }, ...]
+  if (!Array.isArray(order) || order.length === 0) {
+    throw Object.assign(new Error('order must be a non-empty array'), { statusCode: 400 });
+  }
+
+  // Validate positions are 1–6 and unique
+  const positions = order.map(o => o.position);
+  if (positions.some(p => p < 1 || p > MAX_PHOTOS)) {
+    throw Object.assign(new Error('Positions must be between 1 and 6'), { statusCode: 400 });
+  }
+  if (new Set(positions).size !== positions.length) {
+    throw Object.assign(new Error('Duplicate positions not allowed'), { statusCode: 400 });
+  }
+
+  // Verify all photos belong to this user
+  const ids = order.map(o => o.id);
+  const { data: owned } = await supabaseAdmin
+    .from('profile_photos')
+    .select('id')
+    .eq('user_id', userId)
+    .in('id', ids);
+
+  if (!owned || owned.length !== ids.length) {
+    throw Object.assign(new Error('One or more photos not found'), { statusCode: 404 });
+  }
+
+  // Use temp positions to avoid UNIQUE constraint conflicts during update
+  for (const { id, position } of order) {
+    await supabaseAdmin.from('profile_photos').update({ position: position + 100 }).eq('id', id);
+  }
+  for (const { id, position } of order) {
+    await supabaseAdmin.from('profile_photos').update({ position }).eq('id', id);
+  }
+
+  // Update avatar_url to whichever photo is now at position 1
+  const pos1 = order.find(o => o.position === 1);
+  if (pos1) {
+    const { data: photo1 } = await supabaseAdmin
+      .from('profile_photos').select('url').eq('id', pos1.id).single();
+    if (photo1) {
+      await supabaseAdmin.from('profiles').update({ avatar_url: photo1.url }).eq('id', userId);
+    }
+  }
+
+  return getPhotos(userId);
 }
 
 async function updateDeviceToken(userId, { token, platform }) {
@@ -116,4 +259,4 @@ async function updateDeviceToken(userId, { token, platform }) {
   return { message: 'Device token updated' };
 }
 
-module.exports = { getProfile, onboardIndividual, onboardProfessional, updateProfile, uploadPhoto, updateDeviceToken };
+module.exports = { getProfile, onboardIndividual, onboardProfessional, updateProfile, getPhotos, uploadPhoto, deletePhoto, reorderPhotos, updateDeviceToken };

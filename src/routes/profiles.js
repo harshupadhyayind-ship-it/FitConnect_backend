@@ -68,8 +68,13 @@ module.exports = async function profileRoutes(fastify) {
     return profileService.updateProfile(request.user.sub, request.body);
   });
 
-  // POST /api/v1/profiles/me/photo  (multipart)
-  fastify.post('/me/photo', auth, async (request, reply) => {
+  // GET /api/v1/profiles/me/photos — list all photos (ordered by position)
+  fastify.get('/me/photos', auth, async (request) => {
+    return profileService.getPhotos(request.user.sub);
+  });
+
+  // POST /api/v1/profiles/me/photos — upload a new photo (max 6, position 1 = profile picture)
+  fastify.post('/me/photos', auth, async (request, reply) => {
     const data = await request.file();
     if (!data) return reply.code(400).send({ error: 'No file uploaded' });
 
@@ -77,11 +82,45 @@ module.exports = async function profileRoutes(fastify) {
     for await (const chunk of data.file) chunks.push(chunk);
     const buffer = Buffer.concat(chunks);
 
-    const result = await profileService.uploadPhoto(request.user.sub, {
+    const photo = await profileService.uploadPhoto(request.user.sub, {
       buffer,
       mimetype: data.mimetype,
       originalname: data.filename,
     });
+    return reply.code(201).send(photo);
+  });
+
+  // DELETE /api/v1/profiles/me/photos/:photoId — delete a specific photo
+  fastify.delete('/me/photos/:photoId', auth, async (request, reply) => {
+    const result = await profileService.deletePhoto(request.user.sub, request.params.photoId);
+    return reply.send(result);
+  });
+
+  // PATCH /api/v1/profiles/me/photos/reorder — change photo positions
+  fastify.patch('/me/photos/reorder', {
+    ...auth,
+    schema: {
+      body: {
+        type: 'object',
+        required: ['order'],
+        properties: {
+          order: {
+            type: 'array',
+            minItems: 1,
+            items: {
+              type: 'object',
+              required: ['id', 'position'],
+              properties: {
+                id:       { type: 'string' },
+                position: { type: 'integer', minimum: 1, maximum: 6 },
+              },
+            },
+          },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const result = await profileService.reorderPhotos(request.user.sub, request.body.order);
     return reply.send(result);
   });
 
