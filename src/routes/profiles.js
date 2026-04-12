@@ -73,21 +73,27 @@ module.exports = async function profileRoutes(fastify) {
     return profileService.getPhotos(request.user.sub);
   });
 
-  // POST /api/v1/profiles/me/photos — upload a new photo (max 6, position 1 = profile picture)
+  // POST /api/v1/profiles/me/photos — upload 1–6 photos in one request
   fastify.post('/me/photos', auth, async (request, reply) => {
-    const data = await request.file();
-    if (!data) return reply.code(400).send({ error: 'No file uploaded' });
+    const parts = request.files();
+    if (!parts) return reply.code(400).send({ error: 'No files uploaded' });
 
-    const chunks = [];
-    for await (const chunk of data.file) chunks.push(chunk);
-    const buffer = Buffer.concat(chunks);
+    const uploaded = [];
+    for await (const part of parts) {
+      const chunks = [];
+      for await (const chunk of part.file) chunks.push(chunk);
+      const buffer = Buffer.concat(chunks);
 
-    const photo = await profileService.uploadPhoto(request.user.sub, {
-      buffer,
-      mimetype: data.mimetype,
-      originalname: data.filename,
-    });
-    return reply.code(201).send(photo);
+      const photo = await profileService.uploadPhoto(request.user.sub, {
+        buffer,
+        mimetype: part.mimetype,
+        originalname: part.filename,
+      });
+      uploaded.push(photo);
+    }
+
+    if (uploaded.length === 0) return reply.code(400).send({ error: 'No files uploaded' });
+    return reply.code(201).send({ photos: uploaded });
   });
 
   // DELETE /api/v1/profiles/me/photos/:photoId — delete a specific photo
