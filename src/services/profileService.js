@@ -122,13 +122,23 @@ async function uploadPhoto(userId, file) {
   let position = 1;
   while (usedPositions.has(position)) position++;
 
-  // Upload to storage
-  const ext  = file.mimetype.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+  // Detect extension — filename first, then mimetype, then default to jpg
+  const extFromName = file.originalname?.split('.').pop()?.toLowerCase();
+  const extFromMime = file.mimetype?.split('/')[1]?.replace('jpeg', 'jpg');
+  const VALID_EXTS  = ['jpg', 'jpeg', 'png', 'webp', 'heic'];
+  const ext = VALID_EXTS.includes(extFromName) ? extFromName
+            : VALID_EXTS.includes(extFromMime) ? extFromMime
+            : 'jpg';
+
+  // Force correct content-type regardless of what client sends
+  const MIME_MAP = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic' };
+  const contentType = MIME_MAP[ext] || 'image/jpeg';
+
   const path = `photos/${userId}/${position}_${Date.now()}.${ext}`;
 
   const { error: uploadError } = await supabaseAdmin.storage
     .from('profile-photos')
-    .upload(path, file.buffer, { contentType: file.mimetype, upsert: false });
+    .upload(path, file.buffer, { contentType, upsert: false });
 
   if (uploadError) throw new Error(uploadError.message);
 
