@@ -134,11 +134,12 @@ async function uploadPhoto(userId, file) {
   const MIME_MAP = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic' };
   const contentType = MIME_MAP[ext] || 'image/jpeg';
 
-  const path = `photos/${userId}/${position}_${Date.now()}.${ext}`;
+  // Fixed path per position — upsert overwrites instead of creating duplicates
+  const path = `photos/${userId}/${position}.${ext}`;
 
   const { error: uploadError } = await supabaseAdmin.storage
     .from('profile-photos')
-    .upload(path, file.buffer, { contentType, upsert: false });
+    .upload(path, file.buffer, { contentType, upsert: true });
 
   if (uploadError) throw new Error(uploadError.message);
 
