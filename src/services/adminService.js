@@ -37,9 +37,26 @@ async function listUsers({ search, user_type, status, page, limit }) {
 }
 
 async function getUserDetail(userId) {
-  const [{ data: profile }, { data: badges }, { data: checkins }, { count: matchCount }] = await Promise.all([
+  const [
+    { data: profile },
+    { data: badges },
+    { data: checkins },
+    { count: matchCount },
+    { data: photos },
+  ] = await Promise.all([
     supabaseAdmin.from('profiles')
-      .select('*, is_banned, is_suspended, suspension_until, ban_reason, is_verified, is_admin')
+      .select(`
+        id, name, bio, avatar_url, user_type,
+        fitness_goals, fitness_level, workout_types, gender,
+        height_cm, weight_kg, preferred_gender_filter,
+        specialty, credentials,
+        current_streak, longest_streak, total_checkins,
+        latitude, longitude,
+        date_of_birth, onboarding_completed,
+        is_banned, is_suspended, suspension_until, ban_reason,
+        is_verified, is_admin,
+        created_at, updated_at
+      `)
       .eq('id', userId)
       .single(),
     supabaseAdmin.from('user_badges').select('badge_type, earned_at').eq('user_id', userId),
@@ -47,10 +64,20 @@ async function getUserDetail(userId) {
     supabaseAdmin.from('matches')
       .select('id', { count: 'exact', head: true })
       .or(`user1_id.eq.${userId},user2_id.eq.${userId}`),
+    supabaseAdmin.from('profile_photos')
+      .select('id, url, position')
+      .eq('user_id', userId)
+      .order('position', { ascending: true }),
   ]);
 
   if (!profile) throw Object.assign(new Error('User not found'), { status: 404 });
-  return { ...profile, badges, recent_checkins: checkins, total_matches: matchCount };
+  return {
+    ...profile,
+    badges: badges || [],
+    recent_checkins: checkins || [],
+    total_matches: matchCount || 0,
+    photos: photos || [],
+  };
 }
 
 async function banUser(userId, reason, adminId) {

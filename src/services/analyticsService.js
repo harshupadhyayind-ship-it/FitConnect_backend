@@ -56,13 +56,18 @@ async function getDailyActiveUsers(days) {
   // Group by date
   const byDate = {};
   for (const row of data || []) {
-    byDate[row.date] = (byDate[row.date] || new Set()).add(row.user_id);
+    if (!byDate[row.date]) byDate[row.date] = new Set();
+    byDate[row.date].add(row.user_id);
   }
 
-  const result = Object.entries(byDate).map(([date, users]) => ({
-    date,
-    count: users.size,
-  }));
+  // Fill every day in range with 0 if no data
+  const result = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    result.push({ date: dateStr, count: byDate[dateStr] ? byDate[dateStr].size : 0 });
+  }
 
   return { data: result, days };
 }
@@ -135,7 +140,9 @@ async function getRetention() {
     };
   }));
 
-  return { retention: results };
+  const byLabel = {};
+  for (const r of results) byLabel[r.label.toLowerCase()] = r.rate;
+  return { d1: byLabel.d1 ?? 0, d7: byLabel.d7 ?? 0, d30: byLabel.d30 ?? 0, detail: results };
 }
 
 async function getUserGrowth(days) {
@@ -156,8 +163,16 @@ async function getUserGrowth(days) {
     byDate[date] = (byDate[date] || 0) + 1;
   }
 
-  const growth = Object.entries(byDate).map(([date, new_users]) => ({ date, count: new_users }));
-  return { data: growth, days, total_new: (data || []).length };
+  // Fill every day in range with 0 if no signups
+  const result = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    result.push({ date: dateStr, count: byDate[dateStr] || 0 });
+  }
+
+  return { data: result, days, total_new: (data || []).length };
 }
 
 async function getMatchStats(days) {
@@ -178,8 +193,16 @@ async function getMatchStats(days) {
     byDate[date] = (byDate[date] || 0) + 1;
   }
 
-  const daily = Object.entries(byDate).map(([date, matches]) => ({ date, matches }));
-  return { daily_matches: daily, days, total_matches: (data || []).length };
+  // Fill every day in range with 0
+  const result = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    result.push({ date: dateStr, count: byDate[dateStr] || 0 });
+  }
+
+  return { data: result, days, total_matches: (data || []).length };
 }
 
 module.exports = { getOverview, getDailyActiveUsers, getMonthlyActiveUsers, getRetention, getUserGrowth, getMatchStats };
