@@ -7,7 +7,7 @@ async function listUsers({ search, user_type, status, page, limit }) {
   let query = supabaseAdmin
     .from('profiles')
     .select(`
-      id, name, email:id, avatar_url, user_type,
+      id, name, email, phone, avatar_url, user_type,
       fitness_goals, fitness_level, gender,
       current_streak, total_checkins,
       is_banned, is_suspended, suspension_until, is_verified,
@@ -15,7 +15,7 @@ async function listUsers({ search, user_type, status, page, limit }) {
     `, { count: 'exact' });
 
   if (search) {
-    query = query.ilike('name', `%${search}%`);
+    query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
   }
   if (user_type) {
     query = query.eq('user_type', user_type);
@@ -26,6 +26,35 @@ async function listUsers({ search, user_type, status, page, limit }) {
     query = query.eq('is_suspended', true);
   } else if (status === 'active') {
     query = query.eq('is_banned', false).eq('is_suspended', false);
+  } else if (status === 'verified') {
+    query = query.eq('is_verified', true);
+
+  } else if (status === 'active_today') {
+    const today = new Date().toISOString().split('T')[0];
+    const { data: rows } = await supabaseAdmin
+      .from('checkins').select('user_id').eq('date', today);
+    const ids = [...new Set((rows || []).map(r => r.user_id))];
+    query = ids.length ? query.in('id', ids) : query.eq('id', 'no-results');
+
+  } else if (status === 'new_this_week') {
+    // Same logic as dashboard: profiles created in last 7 days
+    const since = new Date(); since.setDate(since.getDate() - 7);
+    query = query.gte('created_at', since.toISOString());
+
+  } else if (status === 'monthly_active') {
+    // Same logic as dashboard: distinct users who checked in since the 1st of this month
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const { data: rows } = await supabaseAdmin
+      .from('checkins').select('user_id').gte('date', monthStart);
+    const ids = [...new Set((rows || []).map(r => r.user_id))];
+    query = ids.length ? query.in('id', ids) : query.eq('id', 'no-results');
+
+  } else if (status === 'has_matches') {
+    const { data: rows } = await supabaseAdmin
+      .from('matches').select('user1_id, user2_id');
+    const ids = [...new Set((rows || []).flatMap(m => [m.user1_id, m.user2_id]))];
+    query = ids.length ? query.in('id', ids) : query.eq('id', 'no-results');
   }
 
   const { data, error, count } = await query
@@ -46,7 +75,7 @@ async function getUserDetail(userId) {
   ] = await Promise.all([
     supabaseAdmin.from('profiles')
       .select(`
-        id, name, bio, avatar_url, user_type,
+        id, name, email, phone, bio, avatar_url, user_type,
         fitness_goals, fitness_level, workout_types, gender,
         height_cm, weight_kg, preferred_gender_filter,
         specialty, credentials,
@@ -135,6 +164,26 @@ async function verifyUser(userId, adminId) {
   await _logAdminAction(adminId, userId, 'verify', {});
 }
 
+async function promoteToAdmin(userId, adminId) {
+  const { error } = await supabaseAdmin
+    .from('profiles')
+    .update({ is_admin: true, updated_at: new Date().toISOString() })
+    .eq('id', userId);
+
+  if (error) throw new Error(error.message);
+  await _logAdminAction(adminId, userId, 'promote_to_admin', {});
+}
+
+async function revokeAdmin(userId, adminId) {
+  const { error } = await supabaseAdmin
+    .from('profiles')
+    .update({ is_admin: false, updated_at: new Date().toISOString() })
+    .eq('id', userId);
+
+  if (error) throw new Error(error.message);
+  await _logAdminAction(adminId, userId, 'revoke_admin', {});
+}
+
 async function deleteUser(userId, adminId) {
   await _logAdminAction(adminId, userId, 'delete', {});
   // Delete from Supabase DB (cascades to all related tables via FK)
@@ -142,6 +191,45 @@ async function deleteUser(userId, adminId) {
   if (error) throw new Error(error.message);
   // Delete Firebase Auth account
   await deleteFirebaseUser(userId);
+}
+
+async function deleteUserPhoto(photoId, targetUserId) {
+  const { data: photo, error: fetchError } = await supabaseAdmin
+    .from('profile_photos')
+    .select('id, url, position, user_id')
+    .eq('id', photoId)
+    .single();
+
+  if (fetchError || !photo) throw Object.assign(new Error('Photo not found'), { status: 404 });
+
+  // Delete from storage
+  const storagePath = photo.url.split('/profile-photos/')[1];
+  if (storagePath) {
+    await supabaseAdmin.storage.from('profile-photos').remove([decodeURIComponent(storagePath)]);
+  }
+
+  // Delete from DB
+  await supabaseAdmin.from('profile_photos').delete().eq('id', photoId);
+
+  // If deleted photo was position 1, promote next photo to position 1 + update avatar_url
+  if (photo.position === 1) {
+    const { data: next } = await supabaseAdmin
+      .from('profile_photos')
+      .select('id, url')
+      .eq('user_id', photo.user_id)
+      .order('position', { ascending: true })
+      .limit(1)
+      .single();
+
+    if (next) {
+      await supabaseAdmin.from('profile_photos').update({ position: 1 }).eq('id', next.id);
+      await supabaseAdmin.from('profiles').update({ avatar_url: next.url }).eq('id', photo.user_id);
+    } else {
+      await supabaseAdmin.from('profiles').update({ avatar_url: null }).eq('id', photo.user_id);
+    }
+  }
+
+  return { message: 'Photo deleted' };
 }
 
 async function _logAdminAction(adminId, targetUserId, action, metadata) {
@@ -153,4 +241,4 @@ async function _logAdminAction(adminId, targetUserId, action, metadata) {
   });
 }
 
-module.exports = { listUsers, getUserDetail, banUser, unbanUser, suspendUser, unsuspendUser, verifyUser, deleteUser };
+module.exports = { listUsers, getUserDetail, banUser, unbanUser, suspendUser, unsuspendUser, verifyUser, promoteToAdmin, revokeAdmin, deleteUser, deleteUserPhoto };

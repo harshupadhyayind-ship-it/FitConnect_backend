@@ -58,8 +58,27 @@ async function updateEvent(eventId, updates) {
 }
 
 async function deleteEvent(eventId) {
+  // Also clean up the cover image from storage if it's ours
+  const { data: event } = await supabaseAdmin.from('events').select('cover_image_url').eq('id', eventId).single();
+  if (event?.cover_image_url) {
+    try {
+      const match = event.cover_image_url.match(/\/event-covers\/(.+)$/);
+      if (match) await supabaseAdmin.storage.from('event-covers').remove([decodeURIComponent(match[1])]);
+    } catch (_) { /* ignore storage errors */ }
+  }
   const { error } = await supabaseAdmin.from('events').delete().eq('id', eventId);
   if (error) throw new Error(error.message);
 }
 
-module.exports = { listEvents, getEvent, createEvent, updateEvent, deleteEvent };
+async function uploadCoverImage(buffer, fileName, mimetype) {
+  const { error } = await supabaseAdmin.storage
+    .from('event-covers')
+    .upload(fileName, buffer, { contentType: mimetype, upsert: false });
+
+  if (error) throw new Error(error.message);
+
+  const { data } = supabaseAdmin.storage.from('event-covers').getPublicUrl(fileName);
+  return data.publicUrl;
+}
+
+module.exports = { listEvents, getEvent, createEvent, updateEvent, deleteEvent, uploadCoverImage };

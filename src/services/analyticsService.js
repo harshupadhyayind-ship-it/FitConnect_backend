@@ -6,25 +6,31 @@ async function getOverview() {
   const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
+  const monthStartStr = monthStart.split('T')[0];
+
   const [
     { count: totalUsers },
-    { count: activeToday },
+    { data: todayCheckins },
     { count: newThisWeek },
     { count: totalMatches },
     { count: totalMessages },
     { count: bannedUsers },
     { count: verifiedUsers },
-    { count: mau },
+    { data: mauCheckins },
   ] = await Promise.all([
     supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }),
-    supabaseAdmin.from('checkins').select('user_id', { count: 'exact', head: true }).eq('date', todayStr),
+    supabaseAdmin.from('checkins').select('user_id').eq('date', todayStr),
     supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo.toISOString()),
     supabaseAdmin.from('matches').select('id', { count: 'exact', head: true }),
     supabaseAdmin.from('messages').select('id', { count: 'exact', head: true }),
     supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }).eq('is_banned', true),
     supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }).eq('is_verified', true),
-    supabaseAdmin.from('checkins').select('user_id', { count: 'exact', head: true }).gte('date', monthStart.split('T')[0]),
+    supabaseAdmin.from('checkins').select('user_id').gte('date', monthStartStr),
   ]);
+
+  // Deduplicate — count distinct users, not rows
+  const activeToday = new Set((todayCheckins || []).map(r => r.user_id)).size;
+  const mau         = new Set((mauCheckins   || []).map(r => r.user_id)).size;
 
   return {
     total_users:    totalUsers,
