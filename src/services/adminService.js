@@ -193,6 +193,76 @@ async function deleteUser(userId, adminId) {
   await deleteFirebaseUser(userId);
 }
 
+async function addUserPhoto(userId, buffer, filename, mimetype) {
+  // Check current count
+  const { data: existing, error: countErr } = await supabaseAdmin
+    .from('profile_photos').select('id, position').eq('user_id', userId).order('position', { ascending: true });
+  if (countErr) throw new Error(countErr.message);
+  if (existing && existing.length >= 6) throw Object.assign(new Error('Maximum 6 photos allowed'), { status: 400 });
+
+  const nextPosition = existing && existing.length > 0 ? Math.max(...existing.map(p => p.position)) + 1 : 1;
+
+  // Upload to storage
+  const ext = (filename.split('.').pop() || 'jpg').toLowerCase();
+  const storagePath = `${userId}/${Date.now()}.${ext}`;
+
+  const { error: uploadErr } = await supabaseAdmin.storage
+    .from('profile-photos').upload(storagePath, buffer, { contentType: mimetype, upsert: false });
+  if (uploadErr) throw new Error(uploadErr.message);
+
+  const { data: { publicUrl } } = supabaseAdmin.storage.from('profile-photos').getPublicUrl(storagePath);
+
+  const { data: photo, error: insertErr } = await supabaseAdmin
+    .from('profile_photos').insert({ user_id: userId, url: publicUrl, position: nextPosition }).select().single();
+  if (insertErr) throw new Error(insertErr.message);
+
+  // If first photo, set as avatar
+  if (nextPosition === 1) {
+    await supabaseAdmin.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId);
+  }
+
+  return photo;
+}
+
+async function reorderPhotos(userId, orderedIds) {
+  // Step 1: set temp positions (100+) to avoid unique-constraint conflicts during swap
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabaseAdmin
+      .from('profile_photos').update({ position: 100 + i }).eq('id', orderedIds[i]).eq('user_id', userId);
+    if (error) throw new Error(error.message);
+  }
+
+  // Step 2: set final positions
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabaseAdmin
+      .from('profile_photos').update({ position: i + 1 }).eq('id', orderedIds[i]).eq('user_id', userId);
+    if (error) throw new Error(error.message);
+  }
+
+  // Update avatar_url to whichever photo is now position 1
+  const { data: first } = await supabaseAdmin
+    .from('profile_photos').select('url').eq('user_id', userId).eq('position', 1).single();
+  if (first) {
+    await supabaseAdmin.from('profiles').update({ avatar_url: first.url }).eq('id', userId);
+  }
+}
+
+async function updateUserProfile(userId, fields) {
+  const ALLOWED = ['name', 'email', 'phone', 'bio', 'gender', 'date_of_birth',
+                   'height_cm', 'weight_kg', 'fitness_level', 'fitness_goals',
+                   'workout_types', 'specialty', 'credentials', 'user_type'];
+
+  const update = {};
+  for (const key of ALLOWED) {
+    if (fields[key] !== undefined) update[key] = fields[key] === '' ? null : fields[key];
+  }
+  if (Object.keys(update).length === 0) throw new Error('No valid fields to update');
+
+  update.updated_at = new Date().toISOString();
+  const { error } = await supabaseAdmin.from('profiles').update(update).eq('id', userId);
+  if (error) throw new Error(error.message);
+}
+
 async function deleteUserPhoto(photoId, targetUserId) {
   const { data: photo, error: fetchError } = await supabaseAdmin
     .from('profile_photos')
@@ -241,4 +311,4 @@ async function _logAdminAction(adminId, targetUserId, action, metadata) {
   });
 }
 
-module.exports = { listUsers, getUserDetail, banUser, unbanUser, suspendUser, unsuspendUser, verifyUser, promoteToAdmin, revokeAdmin, deleteUser, deleteUserPhoto };
+module.exports = { listUsers, getUserDetail, banUser, unbanUser, suspendUser, unsuspendUser, verifyUser, promoteToAdmin, revokeAdmin, deleteUser, deleteUserPhoto, addUserPhoto, reorderPhotos, updateUserProfile };

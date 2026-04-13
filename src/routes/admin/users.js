@@ -93,4 +93,44 @@ module.exports = async function adminUserRoutes(fastify) {
     await adminService.deleteUserPhoto(request.params.photoId, request.params.userId);
     return reply.send({ message: 'Photo deleted' });
   });
+
+  // POST /api/v1/admin/users/:userId/photos — upload a new photo for a user
+  fastify.post('/:userId/photos', guard, async (request, reply) => {
+    const data = await request.file();
+    if (!data) return reply.code(400).send({ error: 'No file uploaded' });
+
+    const ext = (data.filename.split('.').pop() || '').toLowerCase();
+    if (!['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+      return reply.code(400).send({ error: 'Invalid file type. Allowed: jpg, jpeg, png, webp' });
+    }
+
+    const buffer = await data.toBuffer();
+    if (buffer.length > 10 * 1024 * 1024) {
+      return reply.code(400).send({ error: 'File too large (max 10 MB)' });
+    }
+
+    const photo = await adminService.addUserPhoto(request.params.userId, buffer, data.filename, data.mimetype);
+    return reply.code(201).send(photo);
+  });
+
+  // PATCH /api/v1/admin/users/:userId/photos/reorder — update photo ordering
+  fastify.patch('/:userId/photos/reorder', {
+    ...guard,
+    schema: {
+      body: {
+        type: 'object',
+        required: ['orderedIds'],
+        properties: { orderedIds: { type: 'array', items: { type: 'string' } } },
+      },
+    },
+  }, async (request, reply) => {
+    await adminService.reorderPhotos(request.params.userId, request.body.orderedIds);
+    return reply.send({ message: 'Photos reordered' });
+  });
+
+  // PATCH /api/v1/admin/users/:userId — edit profile fields
+  fastify.patch('/:userId', guard, async (request, reply) => {
+    await adminService.updateUserProfile(request.params.userId, request.body);
+    return reply.send({ message: 'Profile updated' });
+  });
 };
