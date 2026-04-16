@@ -22,4 +22,17 @@ module.exports = async function checkinRoutes(fastify) {
   fastify.get('/history', auth, async (request) => {
     return checkinService.getHistory(request.user.sub);
   });
+
+  /**
+   * GET /api/v1/checkin/streaks-page
+   * Single call for the full Streaks screen:
+   *  - streak { current, longest, total }
+   *  - checked_in_today (bool)
+   *  - message (motivational string)
+   *  - calendar { year, month, days_in_month, checked_days[] }
+   *  - goals_progress [{ goal, label, progress }]
+   */
+  fastify.get('/streaks-page', auth, async (request) => {
+    return checkinService.getStreaksPage(request.user.sub);
+  });
 };
