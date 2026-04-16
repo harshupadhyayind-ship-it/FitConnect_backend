@@ -250,7 +250,8 @@ async function reorderPhotos(userId, orderedIds) {
 async function updateUserProfile(userId, fields) {
   const ALLOWED = ['name', 'email', 'phone', 'bio', 'gender', 'date_of_birth',
                    'height_cm', 'weight_kg', 'fitness_level', 'fitness_goals',
-                   'workout_types', 'specialty', 'credentials', 'user_type'];
+                   'workout_types', 'specialty', 'credentials', 'user_type',
+                   'preferred_gender_filter', 'preferred_training_time', 'location'];
 
   const update = {};
   for (const key of ALLOWED) {
