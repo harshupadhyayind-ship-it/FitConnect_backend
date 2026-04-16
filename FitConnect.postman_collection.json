@@ -1,0 +1,1148 @@
+{
+  "info": {
+    "name": "FitConnect API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Complete API collection for FitConnect backend.\n\nVariables:\n- base_url: https://fitconnectbackend-production.up.railway.app/api/v1\n- token: Firebase ID token (get from firebase-auth-test app)\n- admin_token: Firebase ID token for admin user"
+  },
+  "variable": [
+    { "key": "base_url", "value": "https://fitconnectbackend-production.up.railway.app/api/v1" },
+    { "key": "token", "value": "" },
+    { "key": "admin_token", "value": "" }
+  ],
+  "item": [
+
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register or Fetch User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/auth/me", "host": ["{{base_url}}"], "path": ["auth", "me"] },
+            "description": "Called after any Firebase sign-in (Google, Apple, Phone). Creates user in DB if new."
+          }
+        },
+        {
+          "name": "Sign Out",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/auth/signout", "host": ["{{base_url}}"], "path": ["auth", "signout"] },
+            "description": "Revokes Firebase refresh tokens. Mobile must also call FirebaseAuth.signOut()."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Profiles",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/profiles/me", "host": ["{{base_url}}"], "path": ["profiles", "me"] }
+          }
+        },
+        {
+          "name": "Get Profile by User ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/profiles/:userId", "host": ["{{base_url}}"], "path": ["profiles", ":userId"],
+              "variable": [{ "key": "userId", "value": "USER_ID_HERE" }]
+            }
+          }
+        },
+        {
+          "name": "Onboard — Individual",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"date_of_birth\": \"1995-06-15\",\n  \"gender\": \"male\",\n  \"fitness_goals\": [\"weight_loss\", \"muscle_gain\"],\n  \"fitness_level\": \"intermediate\",\n  \"workout_types\": [\"gym\", \"running\", \"yoga\"],\n  \"height_cm\": 175,\n  \"weight_kg\": 70,\n  \"preferred_gender_filter\": \"everyone\",\n  \"bio\": \"Fitness enthusiast looking for workout partners.\",\n  \"latitude\": 28.6139,\n  \"longitude\": 77.2090\n}"
+            },
+            "url": { "raw": "{{base_url}}/profiles/onboard/individual", "host": ["{{base_url}}"], "path": ["profiles", "onboard", "individual"] },
+            "description": "Required: name, date_of_birth, gender, fitness_goals, fitness_level"
+          }
+        },
+        {
+          "name": "Onboard — Professional",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Smith\",\n  \"specialty\": \"Personal Trainer\",\n  \"bio\": \"Certified personal trainer with 5 years experience.\",\n  \"credentials\": [\"ACE Certified\", \"CPR Certified\"],\n  \"latitude\": 28.6139,\n  \"longitude\": 77.2090\n}"
+            },
+            "url": { "raw": "{{base_url}}/profiles/onboard/professional", "host": ["{{base_url}}"], "path": ["profiles", "onboard", "professional"] },
+            "description": "Required: name, specialty, bio, credentials"
+          }
+        },
+        {
+          "name": "Update My Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bio\": \"Updated bio here.\",\n  \"fitness_level\": \"advanced\",\n  \"latitude\": 19.0760,\n  \"longitude\": 72.8777\n}"
+            },
+            "url": { "raw": "{{base_url}}/profiles/me", "host": ["{{base_url}}"], "path": ["profiles", "me"] }
+          }
+        },
+        {
+          "name": "Get My Photos",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/profiles/me/photos", "host": ["{{base_url}}"], "path": ["profiles", "me", "photos"] },
+            "description": "Returns all photos ordered by position. Position 1 = profile picture."
+          }
+        },
+        {
+          "name": "Upload Photo (max 6)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "file", "type": "file", "src": "", "description": "Image file (jpg/png)" }]
+            },
+            "url": { "raw": "{{base_url}}/profiles/me/photos", "host": ["{{base_url}}"], "path": ["profiles", "me", "photos"] },
+            "description": "Upload a photo. Auto-assigned to next available position (1–6). Position 1 is profile picture. Max 6 photos."
+          }
+        },
+        {
+          "name": "Delete Photo",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/profiles/me/photos/:photoId",
+              "host": ["{{base_url}}"], "path": ["profiles", "me", "photos", ":photoId"],
+              "variable": [{ "key": "photoId", "value": "PHOTO_UUID" }]
+            },
+            "description": "Delete a photo by ID. Cannot delete your only remaining photo."
+          }
+        },
+        {
+          "name": "Reorder Photos",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": [\n    { \"id\": \"photo-uuid-1\", \"position\": 1 },\n    { \"id\": \"photo-uuid-2\", \"position\": 2 },\n    { \"id\": \"photo-uuid-3\", \"position\": 3 }\n  ]\n}"
+            },
+            "url": { "raw": "{{base_url}}/profiles/me/photos/reorder", "host": ["{{base_url}}"], "path": ["profiles", "me", "photos", "reorder"] },
+            "description": "Reorder photos. Position 1 becomes the profile picture (avatar_url). Pass only the photos you want to reorder."
+          }
+        },
+        {
+          "name": "Register Device Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"FCM_DEVICE_TOKEN_HERE\",\n  \"platform\": \"android\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/profiles/me/device-token", "host": ["{{base_url}}"], "path": ["profiles", "me", "device-token"] },
+            "description": "platform: android | ios"
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Home",
+      "item": [
+        {
+          "name": "Get Home Screen Data",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/home", "host": ["{{base_url}}"], "path": ["home"] },
+            "description": "Single call for home screen. Returns: user info, sports_categories, trainers (top 10 nearest), fit_buddies (top 10 by compatibility)."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Trainers",
+      "item": [
+        {
+          "name": "List Trainers",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/trainers?page=1&limit=20",
+              "host": ["{{base_url}}"], "path": ["trainers"],
+              "query": [
+                { "key": "specialty", "value": "",        "disabled": true, "description": "e.g. Personal Trainer, Yoga Coach" },
+                { "key": "location",  "value": "",        "disabled": true, "description": "City name filter" },
+                { "key": "page",      "value": "1" },
+                { "key": "limit",     "value": "20",      "description": "Max: 50" }
+              ]
+            },
+            "description": "Returns professional users sorted by proximity then rating."
+          }
+        },
+        {
+          "name": "Get Trainer Detail",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/trainers/:trainerId",
+              "host": ["{{base_url}}"], "path": ["trainers", ":trainerId"],
+              "variable": [{ "key": "trainerId", "value": "TRAINER_USER_ID" }]
+            },
+            "description": "Full public profile: specialty, session_rate, years_of_experience, prompts, credentials, rating."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Enquiries",
+      "item": [
+        {
+          "name": "Send Enquiry to Trainer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trainer_id\": \"TRAINER_USER_ID\",\n  \"message\": \"Hi! I've been struggling with consistency for months. Your profile resonated with me - I'd love to start sessions next week. Prefer morning slots.\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/enquiries", "host": ["{{base_url}}"], "path": ["enquiries"] },
+            "description": "Individual user sends an enquiry to a professional trainer. One enquiry per trainer-client pair."
+          }
+        },
+        {
+          "name": "Get My Enquiries (Trainer)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/enquiries?status=new&page=1&limit=20",
+              "host": ["{{base_url}}"], "path": ["enquiries"],
+              "query": [
+                { "key": "status", "value": "new",  "description": "new | pending | accepted | declined | all" },
+                { "key": "page",   "value": "1" },
+                { "key": "limit",  "value": "20" }
+              ]
+            },
+            "description": "Trainer gets their list of enquiries with client profiles and distance."
+          }
+        },
+        {
+          "name": "Get Enquiry Stats (Trainer)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/enquiries/stats", "host": ["{{base_url}}"], "path": ["enquiries", "stats"] },
+            "description": "Returns { new, this_week, total } counts for the trainer's enquiries dashboard."
+          }
+        },
+        {
+          "name": "Get Enquiry Detail",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/enquiries/:enquiryId",
+              "host": ["{{base_url}}"], "path": ["enquiries", ":enquiryId"],
+              "variable": [{ "key": "enquiryId", "value": "ENQUIRY_ID" }]
+            },
+            "description": "Full detail: client fitness profile, age, distance, prompts, workout types, available times, and their message."
+          }
+        },
+        {
+          "name": "Accept Enquiry",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/enquiries/:enquiryId/accept",
+              "host": ["{{base_url}}"], "path": ["enquiries", ":enquiryId", "accept"],
+              "variable": [{ "key": "enquiryId", "value": "ENQUIRY_ID" }]
+            },
+            "description": "Trainer accepts enquiry. Creates a match and returns match_id to open chat with /messages/:matchId."
+          }
+        },
+        {
+          "name": "Decline Enquiry",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/enquiries/:enquiryId/decline",
+              "host": ["{{base_url}}"], "path": ["enquiries", ":enquiryId", "decline"],
+              "variable": [{ "key": "enquiryId", "value": "ENQUIRY_ID" }]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Discovery",
+      "item": [
+        {
+          "name": "Discover Users",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/discovery/users?distance_km=50&page=1&limit=20",
+              "host": ["{{base_url}}"], "path": ["discovery", "users"],
+              "query": [
+                { "key": "fitness_goal",  "value": "",    "disabled": true, "description": "Optional: weight_loss, muscle_gain, etc." },
+                { "key": "workout_type",  "value": "",    "disabled": true, "description": "Optional: gym, running, yoga, swimming, cycling, horse_riding, golf, tennis, calisthenics, badminton, climbing, volleyball" },
+                { "key": "distance_km",   "value": "50",  "description": "Default: 50" },
+                { "key": "gender",        "value": "",    "disabled": true, "description": "Optional: everyone, men, women, women_only" },
+                { "key": "page",          "value": "1" },
+                { "key": "limit",         "value": "20",  "description": "Max: 50" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Explore",
+      "item": [
+        {
+          "name": "Explore People",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/explore/people?distance_km=50&page=1&limit=20",
+              "host": ["{{base_url}}"], "path": ["explore", "people"],
+              "query": [
+                { "key": "fitness_goal",  "value": "", "disabled": true, "description": "Optional filter" },
+                { "key": "workout_type",  "value": "", "disabled": true, "description": "Optional: gym, running, yoga, swimming, cycling, horse_riding, golf, tennis, calisthenics, badminton, climbing, volleyball" },
+                { "key": "distance_km",   "value": "50" },
+                { "key": "gender",        "value": "", "disabled": true },
+                { "key": "page",          "value": "1" },
+                { "key": "limit",         "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Explore Events",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/explore/events?page=1&limit=20",
+              "host": ["{{base_url}}"], "path": ["explore", "events"],
+              "query": [
+                { "key": "date",  "value": "",   "disabled": true, "description": "Optional: YYYY-MM-DD to filter by specific day (calendar tap)" },
+                { "key": "page",  "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "Returns upcoming events. Use ?date=2026-03-24 to filter by a specific day for the calendar view."
+          }
+        },
+        {
+          "name": "Nearby Places",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/explore/places?distance_km=10&page=1&limit=20",
+              "host": ["{{base_url}}"], "path": ["explore", "places"],
+              "query": [
+                { "key": "type",        "value": "",    "disabled": true, "description": "gym | yoga | physio | sports | pool | crossfit | studio | other | all" },
+                { "key": "distance_km", "value": "10",  "description": "Search radius in km (default 10)" },
+                { "key": "page",        "value": "1" },
+                { "key": "limit",       "value": "20" }
+              ]
+            },
+            "description": "Returns venues (gyms, yoga studios, physio clinics etc.) sorted by distance from user."
+          }
+        },
+        {
+          "name": "Search",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/explore/search?q=yoga",
+              "host": ["{{base_url}}"], "path": ["explore", "search"],
+              "query": [{ "key": "q", "value": "yoga", "description": "Min 2 characters. Searches: people, trainers, events, venues" }]
+            },
+            "description": "Returns { people, trainers, events, venues } all in one response."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Matching",
+      "item": [
+        {
+          "name": "Like User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/matching/like/:targetUserId",
+              "host": ["{{base_url}}"], "path": ["matching", "like", ":targetUserId"],
+              "variable": [{ "key": "targetUserId", "value": "TARGET_USER_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Unlike User",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/matching/unlike/:targetUserId",
+              "host": ["{{base_url}}"], "path": ["matching", "unlike", ":targetUserId"],
+              "variable": [{ "key": "targetUserId", "value": "TARGET_USER_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Get My Matches",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/matching/matches?page=1&limit=20",
+              "host": ["{{base_url}}"], "path": ["matching", "matches"],
+              "query": [
+                { "key": "page",  "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Sent Likes",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/matching/likes/sent", "host": ["{{base_url}}"], "path": ["matching", "likes", "sent"] }
+          }
+        },
+        {
+          "name": "Unmatch",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/matching/matches/:matchId",
+              "host": ["{{base_url}}"], "path": ["matching", "matches", ":matchId"],
+              "variable": [{ "key": "matchId", "value": "MATCH_ID" }]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Messages",
+      "item": [
+        {
+          "name": "Get Chat List",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/messages", "host": ["{{base_url}}"], "path": ["messages"] }
+          }
+        },
+        {
+          "name": "Get Message History",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/messages/:matchId?page=1&limit=30",
+              "host": ["{{base_url}}"], "path": ["messages", ":matchId"],
+              "variable": [{ "key": "matchId", "value": "MATCH_ID" }],
+              "query": [
+                { "key": "page",  "value": "1" },
+                { "key": "limit", "value": "30" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Hey! Want to work out together?\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/messages/:matchId",
+              "host": ["{{base_url}}"], "path": ["messages", ":matchId"],
+              "variable": [{ "key": "matchId", "value": "MATCH_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Mark Messages as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/messages/:matchId/read",
+              "host": ["{{base_url}}"], "path": ["messages", ":matchId", "read"],
+              "variable": [{ "key": "matchId", "value": "MATCH_ID" }]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Check-in",
+      "item": [
+        {
+          "name": "Daily Check-in",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/checkin", "host": ["{{base_url}}"], "path": ["checkin"] },
+            "description": "Single-tap daily check-in. Call once per day."
+          }
+        },
+        {
+          "name": "Get Streak",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/checkin/streak", "host": ["{{base_url}}"], "path": ["checkin", "streak"] }
+          }
+        },
+        {
+          "name": "Get Badges",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/checkin/badges", "host": ["{{base_url}}"], "path": ["checkin", "badges"] }
+          }
+        },
+        {
+          "name": "Get Check-in History",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/checkin/history", "host": ["{{base_url}}"], "path": ["checkin", "history"] }
+          }
+        },
+        {
+          "name": "Get Streaks Page Data",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/checkin/streaks-page", "host": ["{{base_url}}"], "path": ["checkin", "streaks-page"] },
+            "description": "Single call for the full Streaks screen. Returns: streak {current, longest, total}, checked_in_today, motivational message, calendar {year, month, days_in_month, checked_days[]}, goals_progress [{goal, label, progress%}]."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Get Notifications",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/notifications?page=1&limit=20",
+              "host": ["{{base_url}}"], "path": ["notifications"],
+              "query": [
+                { "key": "page",  "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark All as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/notifications/read-all", "host": ["{{base_url}}"], "path": ["notifications", "read-all"] }
+          }
+        },
+        {
+          "name": "Mark One as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/notifications/:id/read",
+              "host": ["{{base_url}}"], "path": ["notifications", ":id", "read"],
+              "variable": [{ "key": "id", "value": "NOTIFICATION_ID" }]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Admin — Users",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/users?page=1&limit=20",
+              "host": ["{{base_url}}"], "path": ["admin", "users"],
+              "query": [
+                { "key": "search",    "value": "",           "disabled": true, "description": "Search by name/email" },
+                { "key": "user_type", "value": "individual", "disabled": true, "description": "individual | professional" },
+                { "key": "status",    "value": "active",     "disabled": true, "description": "active | banned | suspended" },
+                { "key": "page",      "value": "1" },
+                { "key": "limit",     "value": "20",         "description": "Max: 100" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User Detail",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/users/:userId",
+              "host": ["{{base_url}}"], "path": ["admin", "users", ":userId"],
+              "variable": [{ "key": "userId", "value": "USER_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Ban User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Violation of community guidelines\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/users/:userId/ban",
+              "host": ["{{base_url}}"], "path": ["admin", "users", ":userId", "ban"],
+              "variable": [{ "key": "userId", "value": "USER_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Unban User",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/users/:userId/unban",
+              "host": ["{{base_url}}"], "path": ["admin", "users", ":userId", "unban"],
+              "variable": [{ "key": "userId", "value": "USER_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Suspend User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Inappropriate behavior\",\n  \"suspend_until\": \"2026-05-01T00:00:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/users/:userId/suspend",
+              "host": ["{{base_url}}"], "path": ["admin", "users", ":userId", "suspend"],
+              "variable": [{ "key": "userId", "value": "USER_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Unsuspend User",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/users/:userId/unsuspend",
+              "host": ["{{base_url}}"], "path": ["admin", "users", ":userId", "unsuspend"],
+              "variable": [{ "key": "userId", "value": "USER_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Verify User",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/users/:userId/verify",
+              "host": ["{{base_url}}"], "path": ["admin", "users", ":userId", "verify"],
+              "variable": [{ "key": "userId", "value": "USER_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Verify User",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/users/:userId/verify",
+              "host": ["{{base_url}}"], "path": ["admin", "users", ":userId", "verify"],
+              "variable": [{ "key": "userId", "value": "USER_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Promote to Admin",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/users/:userId/promote-admin",
+              "host": ["{{base_url}}"], "path": ["admin", "users", ":userId", "promote-admin"],
+              "variable": [{ "key": "userId", "value": "USER_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Revoke Admin",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/users/:userId/revoke-admin",
+              "host": ["{{base_url}}"], "path": ["admin", "users", ":userId", "revoke-admin"],
+              "variable": [{ "key": "userId", "value": "USER_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Update User Profile (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"bio\": \"Updated bio.\",\n  \"fitness_level\": \"advanced\",\n  \"preferred_gender_filter\": \"everyone\",\n  \"location\": \"Mumbai\",\n  \"specialty\": [\"Personal Trainer\", \"Yoga Coach\"],\n  \"years_of_experience\": \"5-10\",\n  \"session_rate\": \"₹1,000-₹1,500 / session\",\n  \"preferred_training_time\": [\"mornings\", \"evenings\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/users/:userId",
+              "host": ["{{base_url}}"], "path": ["admin", "users", ":userId"],
+              "variable": [{ "key": "userId", "value": "USER_ID" }]
+            },
+            "description": "Edit any profile field. Allowed: name, email, phone, bio, gender, date_of_birth, height_cm, weight_kg, fitness_level, fitness_goals, workout_types, specialty, credentials, user_type, preferred_gender_filter, preferred_training_time, location, years_of_experience, session_rate, rating, target_audience, prompt_philosophy, prompt_best_result, prompt_love_working."
+          }
+        },
+        {
+          "name": "Upload User Photo (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "file", "type": "file", "src": "", "description": "Image file (jpg/jpeg/png/webp, max 10MB)" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/users/:userId/photos",
+              "host": ["{{base_url}}"], "path": ["admin", "users", ":userId", "photos"],
+              "variable": [{ "key": "userId", "value": "USER_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Reorder User Photos (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderedIds\": [\"photo-uuid-1\", \"photo-uuid-2\", \"photo-uuid-3\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/users/:userId/photos/reorder",
+              "host": ["{{base_url}}"], "path": ["admin", "users", ":userId", "photos", "reorder"],
+              "variable": [{ "key": "userId", "value": "USER_ID" }]
+            },
+            "description": "Pass all photo IDs in desired order. Position 1 becomes new avatar_url."
+          }
+        },
+        {
+          "name": "Delete User Photo (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/users/:userId/photos/:photoId",
+              "host": ["{{base_url}}"], "path": ["admin", "users", ":userId", "photos", ":photoId"],
+              "variable": [
+                { "key": "userId",  "value": "USER_ID" },
+                { "key": "photoId", "value": "PHOTO_UUID" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete User (Permanent)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/users/:userId",
+              "host": ["{{base_url}}"], "path": ["admin", "users", ":userId"],
+              "variable": [{ "key": "userId", "value": "USER_ID" }]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Admin — Moderation",
+      "item": [
+        {
+          "name": "List Reports",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/moderation/reports?status=pending&page=1&limit=20",
+              "host": ["{{base_url}}"], "path": ["admin", "moderation", "reports"],
+              "query": [
+                { "key": "status", "value": "pending", "description": "pending | resolved | dismissed" },
+                { "key": "type",   "value": "",        "disabled": true, "description": "user | message" },
+                { "key": "page",   "value": "1" },
+                { "key": "limit",  "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Report Detail",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/moderation/reports/:reportId",
+              "host": ["{{base_url}}"], "path": ["admin", "moderation", "reports", ":reportId"],
+              "variable": [{ "key": "reportId", "value": "REPORT_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Resolve Report",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"ban\",\n  \"notes\": \"User repeatedly violated guidelines.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/moderation/reports/:reportId/resolve",
+              "host": ["{{base_url}}"], "path": ["admin", "moderation", "reports", ":reportId", "resolve"],
+              "variable": [{ "key": "reportId", "value": "REPORT_ID" }]
+            },
+            "description": "action: warn | ban | delete_content | none"
+          }
+        },
+        {
+          "name": "Dismiss Report",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/moderation/reports/:reportId/dismiss",
+              "host": ["{{base_url}}"], "path": ["admin", "moderation", "reports", ":reportId", "dismiss"],
+              "variable": [{ "key": "reportId", "value": "REPORT_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Get Flagged Messages",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/moderation/flagged-messages?page=1&limit=20",
+              "host": ["{{base_url}}"], "path": ["admin", "moderation", "flagged-messages"],
+              "query": [
+                { "key": "page",  "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Admin — Analytics",
+      "item": [
+        {
+          "name": "Overview",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": { "raw": "{{base_url}}/admin/analytics/overview", "host": ["{{base_url}}"], "path": ["admin", "analytics", "overview"] }
+          }
+        },
+        {
+          "name": "Daily Active Users (DAU)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/analytics/dau?days=30",
+              "host": ["{{base_url}}"], "path": ["admin", "analytics", "dau"],
+              "query": [{ "key": "days", "value": "30" }]
+            }
+          }
+        },
+        {
+          "name": "Monthly Active Users (MAU)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/analytics/mau?months=6",
+              "host": ["{{base_url}}"], "path": ["admin", "analytics", "mau"],
+              "query": [{ "key": "months", "value": "6" }]
+            }
+          }
+        },
+        {
+          "name": "Retention (D1 / D7 / D30)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": { "raw": "{{base_url}}/admin/analytics/retention", "host": ["{{base_url}}"], "path": ["admin", "analytics", "retention"] }
+          }
+        },
+        {
+          "name": "User Growth",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/analytics/growth?days=30",
+              "host": ["{{base_url}}"], "path": ["admin", "analytics", "growth"],
+              "query": [{ "key": "days", "value": "30" }]
+            }
+          }
+        },
+        {
+          "name": "Match Stats",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/analytics/matches?days=30",
+              "host": ["{{base_url}}"], "path": ["admin", "analytics", "matches"],
+              "query": [{ "key": "days", "value": "30" }]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Admin — Events",
+      "item": [
+        {
+          "name": "List Events",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/events?page=1&limit=20&status=upcoming",
+              "host": ["{{base_url}}"], "path": ["admin", "events"],
+              "query": [
+                { "key": "page",   "value": "1" },
+                { "key": "limit",  "value": "20" },
+                { "key": "status", "value": "upcoming", "description": "upcoming | past | all" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Event Detail",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/events/:eventId",
+              "host": ["{{base_url}}"], "path": ["admin", "events", ":eventId"],
+              "variable": [{ "key": "eventId", "value": "EVENT_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Create Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Morning Yoga Session\",\n  \"description\": \"Join us for a relaxing morning yoga session in the park.\",\n  \"start_date\": \"2026-05-01T07:00:00.000Z\",\n  \"end_date\": \"2026-05-01T09:00:00.000Z\",\n  \"location\": \"Mumbai\",\n  \"cover_image_url\": \"https://example.com/yoga.jpg\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/admin/events", "host": ["{{base_url}}"], "path": ["admin", "events"] },
+            "description": "Required: title, start_date, end_date"
+          }
+        },
+        {
+          "name": "Update Event",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Event Title\",\n  \"location\": \"Delhi\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/events/:eventId",
+              "host": ["{{base_url}}"], "path": ["admin", "events", ":eventId"],
+              "variable": [{ "key": "eventId", "value": "EVENT_ID" }]
+            }
+          }
+        },
+        {
+          "name": "Delete Event",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/events/:eventId",
+              "host": ["{{base_url}}"], "path": ["admin", "events", ":eventId"],
+              "variable": [{ "key": "eventId", "value": "EVENT_ID" }]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "Admin — Broadcast",
+      "item": [
+        {
+          "name": "Send Broadcast Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"New Feature Alert!\",\n  \"body\": \"Check out the new events feature on FitConnect.\",\n  \"filters\": {\n    \"user_type\": \"individual\",\n    \"fitness_level\": \"beginner\",\n    \"platform\": \"android\"\n  },\n  \"data\": {\n    \"screen\": \"events\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/notifications/broadcast",
+              "host": ["{{base_url}}"], "path": ["admin", "notifications", "broadcast"]
+            },
+            "description": "Omit 'filters' to send to all users. filters: user_type (individual|professional), fitness_level (beginner|intermediate|advanced), fitness_goal, platform (android|ios)"
+          }
+        },
+        {
+          "name": "Broadcast to All Users",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Announcement\",\n  \"body\": \"We have an exciting update for all FitConnect users!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/notifications/broadcast",
+              "host": ["{{base_url}}"], "path": ["admin", "notifications", "broadcast"]
+            }
+          }
+        },
+        {
+          "name": "Broadcast History",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/admin/notifications/broadcast/history?page=1&limit=20",
+              "host": ["{{base_url}}"], "path": ["admin", "notifications", "broadcast", "history"],
+              "query": [
+                { "key": "page",  "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        }
+      ]
+    }
+
+  ]
+}
