@@ -17,11 +17,27 @@ module.exports = async function exploreRoutes(fastify) {
     return exploreService.getPeople(request.user.sub, filters);
   });
 
-  // GET /api/v1/explore/events
+  // GET /api/v1/explore/events?page=&limit=&date=YYYY-MM-DD
   fastify.get('/events', auth, async (request) => {
     const page  = parseInt(request.query.page)  || 1;
     const limit = parseInt(request.query.limit) || 20;
-    return exploreService.getEvents(page, limit);
+    return exploreService.getEvents(page, limit, { date: request.query.date });
+  });
+
+  /**
+   * GET /api/v1/explore/places
+   * Query: type (gym|yoga|physio|sports|pool|crossfit|studio|other|all), distance_km, page, limit
+   * Returns venues sorted by proximity to the authenticated user
+   */
+  fastify.get('/places', auth, async (request) => {
+    const { type, page = 1, limit = 20 } = request.query;
+    const distance_km = parseFloat(request.query.distance_km) || 10;
+    return exploreService.getNearbyPlaces(request.user.sub, {
+      type,
+      distance_km,
+      page:  parseInt(page),
+      limit: Math.min(parseInt(limit), 50),
+    });
   });
 
   // GET /api/v1/explore/search?q=...

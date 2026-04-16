@@ -54,6 +54,7 @@ const authRateLimit = { config: { rateLimit: { max: 20, timeWindow: '15 minutes'
 // ─── Route registration ───────────────────────────────────────────────────────
 fastify.register(require('./routes/auth'),          { prefix: '/api/v1/auth',          ...authRateLimit });
 fastify.register(require('./routes/home'),          { prefix: '/api/v1/home' });
+fastify.register(require('./routes/trainers'),      { prefix: '/api/v1/trainers' });
 fastify.register(require('./routes/profiles'),      { prefix: '/api/v1/profiles' });
 fastify.register(require('./routes/checkin'),       { prefix: '/api/v1/checkin' });
 fastify.register(require('./routes/discovery'),     { prefix: '/api/v1/discovery' });

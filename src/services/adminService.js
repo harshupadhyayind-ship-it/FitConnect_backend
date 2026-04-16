@@ -80,6 +80,7 @@ async function getUserDetail(userId) {
         height_cm, weight_kg, preferred_gender_filter,
         specialty, credentials,
         years_of_experience, session_rate,
+        rating, reviews_count, target_audience,
         prompt_philosophy, prompt_best_result, prompt_love_working,
         current_streak, longest_streak, total_checkins,
         latitude, longitude, location,
@@ -254,7 +255,7 @@ async function updateUserProfile(userId, fields) {
                    'height_cm', 'weight_kg', 'fitness_level', 'fitness_goals',
                    'workout_types', 'specialty', 'credentials', 'user_type',
                    'preferred_gender_filter', 'preferred_training_time', 'location',
-                   'years_of_experience', 'session_rate',
+                   'years_of_experience', 'session_rate', 'rating', 'reviews_count', 'target_audience',
                    'prompt_philosophy', 'prompt_best_result', 'prompt_love_working'];
 
   const update = {};
