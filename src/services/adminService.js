@@ -78,9 +78,11 @@ async function getUserDetail(userId) {
         id, name, email, phone, bio, avatar_url, user_type,
         fitness_goals, fitness_level, workout_types, gender,
         height_cm, weight_kg, preferred_gender_filter,
-        specialty, credentials,
+        specialty, specialties, credentials,
+        years_of_experience, session_rate,
+        prompt_philosophy, prompt_best_result, prompt_love_working,
         current_streak, longest_streak, total_checkins,
-        latitude, longitude,
+        latitude, longitude, location,
         date_of_birth, onboarding_completed,
         is_banned, is_suspended, suspension_until, ban_reason,
         is_verified, is_admin,
@@ -250,8 +252,10 @@ async function reorderPhotos(userId, orderedIds) {
 async function updateUserProfile(userId, fields) {
   const ALLOWED = ['name', 'email', 'phone', 'bio', 'gender', 'date_of_birth',
                    'height_cm', 'weight_kg', 'fitness_level', 'fitness_goals',
-                   'workout_types', 'specialty', 'credentials', 'user_type',
-                   'preferred_gender_filter', 'preferred_training_time', 'location'];
+                   'workout_types', 'specialty', 'specialties', 'credentials', 'user_type',
+                   'preferred_gender_filter', 'preferred_training_time', 'location',
+                   'years_of_experience', 'session_rate',
+                   'prompt_philosophy', 'prompt_best_result', 'prompt_love_working'];
 
   const update = {};
   for (const key of ALLOWED) {

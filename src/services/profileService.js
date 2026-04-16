@@ -66,7 +66,9 @@ async function updateProfile(userId, updates) {
   // Only allow safe fields to be updated
   const allowed = [
     'name', 'bio', 'fitness_goals', 'fitness_level', 'workout_types', 'height_cm', 'weight_kg',
-    'preferred_gender_filter', 'preferred_training_time', 'latitude', 'longitude', 'specialty', 'credentials',
+    'preferred_gender_filter', 'preferred_training_time', 'latitude', 'longitude', 'location',
+    'specialty', 'specialties', 'credentials', 'years_of_experience', 'session_rate',
+    'prompt_philosophy', 'prompt_best_result', 'prompt_love_working',
   ];
   const sanitized = {};
   for (const key of allowed) {
