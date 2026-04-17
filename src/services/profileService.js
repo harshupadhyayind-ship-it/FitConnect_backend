@@ -263,6 +263,61 @@ async function reorderPhotos(userId, order) {
   return getPhotos(userId);
 }
 
+async function replacePhoto(userId, photoId, file) {
+  // Verify the photo belongs to this user
+  const { data: photo, error: fetchError } = await supabaseAdmin
+    .from('profile_photos')
+    .select('id, url, position')
+    .eq('id', photoId)
+    .eq('user_id', userId)
+    .single();
+
+  if (fetchError || !photo) {
+    throw Object.assign(new Error('Photo not found'), { statusCode: 404 });
+  }
+
+  // Detect extension
+  const extFromName = file.originalname?.split('.').pop()?.toLowerCase();
+  const extFromMime = file.mimetype?.split('/')[1]?.replace('jpeg', 'jpg');
+  const VALID_EXTS  = ['jpg', 'jpeg', 'png', 'webp', 'heic'];
+  const ext = VALID_EXTS.includes(extFromName) ? extFromName
+            : VALID_EXTS.includes(extFromMime) ? extFromMime
+            : 'jpg';
+
+  const MIME_MAP    = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic' };
+  const contentType = MIME_MAP[ext] || 'image/jpeg';
+
+  // Overwrite the file at the same position path
+  const path = `photos/${userId}/${photo.position}.${ext}`;
+
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from('profile-photos')
+    .upload(path, file.buffer, { contentType, upsert: true });
+
+  if (uploadError) throw new Error(uploadError.message);
+
+  // Add cache-buster so clients don't serve the old image from CDN cache
+  const { data: urlData } = supabaseAdmin.storage.from('profile-photos').getPublicUrl(path);
+  const url = `${urlData.publicUrl}?t=${Date.now()}`;
+
+  // Update DB record with new URL
+  const { data: updated, error: updateError } = await supabaseAdmin
+    .from('profile_photos')
+    .update({ url, updated_at: new Date().toISOString() })
+    .eq('id', photoId)
+    .select()
+    .single();
+
+  if (updateError) throw new Error(updateError.message);
+
+  // If position 1, keep avatar_url in sync
+  if (photo.position === 1) {
+    await supabaseAdmin.from('profiles').update({ avatar_url: url }).eq('id', userId);
+  }
+
+  return updated;
+}
+
 async function updateDeviceToken(userId, { token, platform }) {
   const { error } = await supabaseAdmin
     .from('device_tokens')
@@ -272,4 +327,4 @@ async function updateDeviceToken(userId, { token, platform }) {
   return { message: 'Device token updated' };
 }
 
-module.exports = { getProfile, onboardIndividual, onboardProfessional, updateProfile, getPhotos, uploadPhoto, deletePhoto, reorderPhotos, updateDeviceToken };
+module.exports = { getProfile, onboardIndividual, onboardProfessional, updateProfile, getPhotos, uploadPhoto, replacePhoto, deletePhoto, reorderPhotos, updateDeviceToken };

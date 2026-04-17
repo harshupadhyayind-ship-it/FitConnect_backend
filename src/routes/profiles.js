@@ -96,6 +96,23 @@ module.exports = async function profileRoutes(fastify) {
     return reply.code(201).send({ photos: uploaded });
   });
 
+  // PUT /api/v1/profiles/me/photos/:photoId — replace an existing photo (same position, new image)
+  fastify.put('/me/photos/:photoId', auth, async (request, reply) => {
+    const file = await request.file();
+    if (!file) return reply.code(400).send({ error: 'No file uploaded' });
+
+    const chunks = [];
+    for await (const chunk of file.file) chunks.push(chunk);
+    const buffer = Buffer.concat(chunks);
+
+    const updated = await profileService.replacePhoto(request.user.sub, request.params.photoId, {
+      buffer,
+      mimetype: file.mimetype,
+      originalname: file.filename,
+    });
+    return reply.send(updated);
+  });
+
   // DELETE /api/v1/profiles/me/photos/:photoId — delete a specific photo
   fastify.delete('/me/photos/:photoId', auth, async (request, reply) => {
     const result = await profileService.deletePhoto(request.user.sub, request.params.photoId);
