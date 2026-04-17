@@ -263,7 +263,7 @@ async function reorderPhotos(userId, order) {
   return getPhotos(userId);
 }
 
-async function replacePhoto(userId, photoId, file) {
+async function _replaceSinglePhoto(userId, photoId, file) {
   // Verify the photo belongs to this user
   const { data: photo, error: fetchError } = await supabaseAdmin
     .from('profile_photos')
@@ -273,7 +273,7 @@ async function replacePhoto(userId, photoId, file) {
     .single();
 
   if (fetchError || !photo) {
-    throw Object.assign(new Error('Photo not found'), { statusCode: 404 });
+    throw Object.assign(new Error(`Photo ${photoId} not found`), { statusCode: 404 });
   }
 
   // Detect extension
@@ -287,7 +287,6 @@ async function replacePhoto(userId, photoId, file) {
   const MIME_MAP    = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic' };
   const contentType = MIME_MAP[ext] || 'image/jpeg';
 
-  // Overwrite the file at the same position path
   const path = `photos/${userId}/${photo.position}.${ext}`;
 
   const { error: uploadError } = await supabaseAdmin.storage
@@ -296,11 +295,9 @@ async function replacePhoto(userId, photoId, file) {
 
   if (uploadError) throw new Error(uploadError.message);
 
-  // Add cache-buster so clients don't serve the old image from CDN cache
   const { data: urlData } = supabaseAdmin.storage.from('profile-photos').getPublicUrl(path);
   const url = `${urlData.publicUrl}?t=${Date.now()}`;
 
-  // Update DB record with new URL
   const { data: updated, error: updateError } = await supabaseAdmin
     .from('profile_photos')
     .update({ url, updated_at: new Date().toISOString() })
@@ -310,12 +307,40 @@ async function replacePhoto(userId, photoId, file) {
 
   if (updateError) throw new Error(updateError.message);
 
-  // If position 1, keep avatar_url in sync
-  if (photo.position === 1) {
+  return { photo: updated, isPosition1: photo.position === 1, url };
+}
+
+// Replace a single photo
+async function replacePhoto(userId, photoId, file) {
+  const { photo, isPosition1, url } = await _replaceSinglePhoto(userId, photoId, file);
+  if (isPosition1) {
     await supabaseAdmin.from('profiles').update({ avatar_url: url }).eq('id', userId);
   }
+  return photo;
+}
 
-  return updated;
+// Replace multiple photos in one request
+// files: [{ photoId, buffer, mimetype, originalname }, ...]
+async function replacePhotos(userId, files) {
+  if (!files || files.length === 0) {
+    throw Object.assign(new Error('No files provided'), { statusCode: 400 });
+  }
+  if (files.length > MAX_PHOTOS) {
+    throw Object.assign(new Error(`Cannot replace more than ${MAX_PHOTOS} photos at once`), { statusCode: 400 });
+  }
+
+  // Process all replacements in parallel
+  const results = await Promise.all(
+    files.map(({ photoId, ...file }) => _replaceSinglePhoto(userId, photoId, file))
+  );
+
+  // If any replacement was position 1, update avatar_url
+  const pos1 = results.find(r => r.isPosition1);
+  if (pos1) {
+    await supabaseAdmin.from('profiles').update({ avatar_url: pos1.url }).eq('id', userId);
+  }
+
+  return { photos: results.map(r => r.photo) };
 }
 
 async function updateDeviceToken(userId, { token, platform }) {
@@ -327,4 +352,4 @@ async function updateDeviceToken(userId, { token, platform }) {
   return { message: 'Device token updated' };
 }
 
-module.exports = { getProfile, onboardIndividual, onboardProfessional, updateProfile, getPhotos, uploadPhoto, replacePhoto, deletePhoto, reorderPhotos, updateDeviceToken };
+module.exports = { getProfile, onboardIndividual, onboardProfessional, updateProfile, getPhotos, uploadPhoto, replacePhoto, replacePhotos, deletePhoto, reorderPhotos, updateDeviceToken };

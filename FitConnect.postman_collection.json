@@ -318,6 +318,46 @@
           }
         },
         {
+          "name": "Replace Multiple Photos",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "PHOTO_UUID_1",
+                  "type": "file",
+                  "description": "Field name = photoId to replace. Add one field per photo."
+                },
+                {
+                  "key": "PHOTO_UUID_2",
+                  "type": "file",
+                  "description": "Field name = photoId to replace."
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/profiles/me/photos/replace",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "profiles",
+                "me",
+                "photos",
+                "replace"
+              ]
+            },
+            "description": "Replace multiple photos in a single request.\n\nEach form field name must be the UUID of the photo to replace, and the value is the new image file.\n\nExample fields:\n- `abc-123-uuid` \u2192 file1.jpg\n- `def-456-uuid` \u2192 file2.png\n\nReturns: `{ photos: [...] }` \u2014 all replaced photos in order."
+          }
+        },
+        {
           "name": "Delete Photo",
           "request": {
             "method": "DELETE",

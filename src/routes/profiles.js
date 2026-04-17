@@ -96,7 +96,7 @@ module.exports = async function profileRoutes(fastify) {
     return reply.code(201).send({ photos: uploaded });
   });
 
-  // PUT /api/v1/profiles/me/photos/:photoId — replace an existing photo (same position, new image)
+  // PUT /api/v1/profiles/me/photos/:photoId — replace a single photo (same position, new image)
   fastify.put('/me/photos/:photoId', auth, async (request, reply) => {
     const file = await request.file();
     if (!file) return reply.code(400).send({ error: 'No file uploaded' });
@@ -111,6 +111,32 @@ module.exports = async function profileRoutes(fastify) {
       originalname: file.filename,
     });
     return reply.send(updated);
+  });
+
+  // PUT /api/v1/profiles/me/photos/replace — replace multiple photos at once
+  // Each form field name must be the photoId to replace, value is the new image file
+  // e.g. field "abc-uuid-1" = file1, field "abc-uuid-2" = file2
+  fastify.put('/me/photos/replace', auth, async (request, reply) => {
+    const parts = request.files();
+    if (!parts) return reply.code(400).send({ error: 'No files uploaded' });
+
+    const files = [];
+    for await (const part of parts) {
+      const photoId = part.fieldname; // field name = the photoId to replace
+      const chunks = [];
+      for await (const chunk of part.file) chunks.push(chunk);
+      files.push({
+        photoId,
+        buffer: Buffer.concat(chunks),
+        mimetype: part.mimetype,
+        originalname: part.filename,
+      });
+    }
+
+    if (files.length === 0) return reply.code(400).send({ error: 'No files uploaded' });
+
+    const result = await profileService.replacePhotos(request.user.sub, files);
+    return reply.send(result);
   });
 
   // DELETE /api/v1/profiles/me/photos/:photoId — delete a specific photo
