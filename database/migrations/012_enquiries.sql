@@ -1,9 +1,10 @@
 -- Migration 012: Enquiries system for professional trainers
+-- Note: profiles.id is TEXT (Firebase UIDs), so foreign keys must be TEXT
 
 CREATE TABLE IF NOT EXISTS enquiries (
   id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  trainer_id  UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  client_id   UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  trainer_id  TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  client_id   TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   message     TEXT NOT NULL,
   status      TEXT NOT NULL DEFAULT 'new'
                 CHECK (status IN ('new', 'pending', 'accepted', 'declined')),

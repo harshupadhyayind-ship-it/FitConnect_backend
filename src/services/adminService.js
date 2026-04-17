@@ -67,7 +67,7 @@ async function listUsers({ search, user_type, status, page, limit }) {
 
 async function getUserDetail(userId) {
   const [
-    { data: profile },
+    { data: profile, error: profileErr },
     { data: badges },
     { data: checkins },
     { count: matchCount },
@@ -78,6 +78,7 @@ async function getUserDetail(userId) {
         id, name, email, phone, bio, avatar_url, user_type,
         fitness_goals, fitness_level, workout_types, gender,
         height_cm, weight_kg, preferred_gender_filter,
+        preferred_training_time,
         specialty, credentials,
         years_of_experience, session_rate,
         rating, reviews_count, target_audience,
@@ -102,6 +103,8 @@ async function getUserDetail(userId) {
       .order('position', { ascending: true }),
   ]);
 
+  // Surface the real DB error instead of masking it as "User not found"
+  if (profileErr) throw Object.assign(new Error(profileErr.message), { status: profileErr.code === 'PGRST116' ? 404 : 500 });
   if (!profile) throw Object.assign(new Error('User not found'), { status: 404 });
   return {
     ...profile,
