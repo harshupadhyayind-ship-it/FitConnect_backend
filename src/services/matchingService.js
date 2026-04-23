@@ -3,6 +3,17 @@ const { supabaseAdmin } = require('../config/supabase');
 async function likeUser(likerId, likedUserId) {
   if (likerId === likedUserId) throw Object.assign(new Error('Cannot like yourself'), { status: 400 });
 
+  // Ensure the target profile exists before inserting the like
+  const { data: targetProfile, error: profileErr } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('id', likedUserId)
+    .single();
+
+  if (profileErr || !targetProfile) {
+    throw Object.assign(new Error('User not found'), { status: 404 });
+  }
+
   // Upsert like
   const { error: likeError } = await supabaseAdmin
     .from('likes')
