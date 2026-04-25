@@ -33,20 +33,21 @@ async function likeUser(likerId, likedUserId) {
   let match = null;
 
   if (mutualLike) {
-    // Ensure deterministic ordering to avoid duplicate match rows
-    const [user1_id, user2_id] = [likerId, likedUserId].sort();
-
+    // Check for existing match in either column ordering
+    // (LEAST/GREATEST unique index prevents duplicates regardless of insert order)
     const { data: existingMatch } = await supabaseAdmin
       .from('matches')
       .select('id')
-      .eq('user1_id', user1_id)
-      .eq('user2_id', user2_id)
-      .single();
+      .or(
+        `and(user1_id.eq.${likerId},user2_id.eq.${likedUserId}),` +
+        `and(user1_id.eq.${likedUserId},user2_id.eq.${likerId})`
+      )
+      .maybeSingle();
 
     if (!existingMatch) {
       const { data: newMatch, error: matchError } = await supabaseAdmin
         .from('matches')
-        .insert({ user1_id, user2_id })
+        .insert({ user1_id: likerId, user2_id: likedUserId })
         .select()
         .single();
 
