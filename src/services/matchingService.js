@@ -110,6 +110,34 @@ async function getSentLikes(userId) {
   return { likes: data };
 }
 
+async function getReceivedLikes(userId) {
+  // Fetch everyone who liked this user, excluding people already matched
+  const { data: matchRows } = await supabaseAdmin
+    .from('matches')
+    .select('user1_id, user2_id')
+    .or(`user1_id.eq.${userId},user2_id.eq.${userId}`);
+
+  const matchedIds = new Set();
+  matchRows?.forEach(r => {
+    matchedIds.add(r.user1_id);
+    matchedIds.add(r.user2_id);
+  });
+  matchedIds.delete(userId); // don't exclude self twice
+
+  const { data, error } = await supabaseAdmin
+    .from('likes')
+    .select('liker_user_id, created_at, profile:liker_user_id(id, name, avatar_url, fitness_goals, fitness_level, current_streak)')
+    .eq('liked_user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  // Filter out already-matched users (they appear in matches, not pending likes)
+  const pending = (data || []).filter(r => !matchedIds.has(r.liker_user_id));
+
+  return { likes: pending, total: pending.length };
+}
+
 async function unmatch(userId, matchId) {
   // Verify user is part of this match
   const { data: match, error: fetchErr } = await supabaseAdmin
@@ -127,4 +155,4 @@ async function unmatch(userId, matchId) {
   if (error) throw new Error(error.message);
 }
 
-module.exports = { likeUser, unlikeUser, getMatches, getSentLikes, unmatch };
+module.exports = { likeUser, unlikeUser, getMatches, getSentLikes, getReceivedLikes, unmatch };

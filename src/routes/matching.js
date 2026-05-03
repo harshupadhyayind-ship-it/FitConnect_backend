@@ -30,6 +30,11 @@ module.exports = async function matchingRoutes(fastify) {
     return matchingService.getSentLikes(request.user.sub);
   });
 
+  // GET /api/v1/matching/likes/received
+  fastify.get('/likes/received', auth, async (request) => {
+    return matchingService.getReceivedLikes(request.user.sub);
+  });
+
   // DELETE /api/v1/matching/matches/:matchId  — unmatch
   fastify.delete('/matches/:matchId', auth, async (request, reply) => {
     await matchingService.unmatch(request.user.sub, request.params.matchId);

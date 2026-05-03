@@ -1093,6 +1093,30 @@
           }
         },
         {
+          "name": "Get Received Likes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/matching/likes/received",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "matching",
+                "likes",
+                "received"
+              ]
+            },
+            "description": "Get all users who have liked the current user (pending \u2014 not yet matched).\n\nReturns: `{ likes: [{ liker_user_id, created_at, profile: { id, name, avatar_url, fitness_goals, fitness_level, current_streak } }], total }`\n\nAlready-matched users are excluded from this list."
+          }
+        },
+        {
           "name": "Unmatch",
           "request": {
             "method": "DELETE",
