@@ -7,21 +7,31 @@ const { supabaseAdmin } = require('../config/supabase');
  */
 
 async function getChatList(userId) {
-  // Fetch messages + unread counts in parallel
-  const [{ data: msgs, error }, { data: unreadRows }] = await Promise.all([
+  // Fetch all matches + messages + unread counts in parallel
+  const [
+    { data: allMatches, error: matchErr },
+    { data: msgs,       error: msgErr   },
+    { data: unreadRows },
+  ] = await Promise.all([
+    // All matches for this user (to catch new matches with no messages)
+    supabaseAdmin
+      .from('matches')
+      .select(`
+        id, created_at,
+        user1:user1_id(id, name, avatar_url, fitness_goals, current_streak, user_type),
+        user2:user2_id(id, name, avatar_url, fitness_goals, current_streak, user_type)
+      `)
+      .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
+      .order('created_at', { ascending: false }),
+
+    // Latest message per match
     supabaseAdmin
       .from('messages')
-      .select(`
-        match_id, content, created_at, sender_id, is_read,
-        match:match_id(
-          created_at,
-          user1:user1_id(id, name, avatar_url, user_type),
-          user2:user2_id(id, name, avatar_url, user_type)
-        )
-      `)
+      .select('match_id, content, created_at, sender_id, is_read')
       .or(`sender_id.eq.${userId},recipient_id.eq.${userId}`)
       .order('created_at', { ascending: false }),
 
+    // Unread counts
     supabaseAdmin
       .from('messages')
       .select('match_id')
@@ -29,7 +39,14 @@ async function getChatList(userId) {
       .eq('is_read', false),
   ]);
 
-  if (error) throw new Error(error.message);
+  if (matchErr) throw new Error(matchErr.message);
+  if (msgErr)   throw new Error(msgErr.message);
+
+  // Build last-message map  { match_id → message }
+  const lastMsgMap = {};
+  for (const msg of msgs || []) {
+    if (!lastMsgMap[msg.match_id]) lastMsgMap[msg.match_id] = msg;
+  }
 
   // Build unread count map
   const unreadMap = {};
@@ -37,42 +54,61 @@ async function getChatList(userId) {
     unreadMap[r.match_id] = (unreadMap[r.match_id] || 0) + 1;
   });
 
-  const seen = new Set();
+  const sevenDaysAgo  = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const new_matches   = [];
   const conversations = [];
-  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
-  for (const msg of msgs || []) {
-    if (seen.has(msg.match_id)) continue;
-    seen.add(msg.match_id);
+  for (const match of allMatches || []) {
+    const otherUser  = match.user1?.id === userId ? match.user2 : match.user1;
+    const lastMsg    = lastMsgMap[match.id];
+    const isNew      = new Date(match.created_at).getTime() >= sevenDaysAgo;
 
-    const match     = msg.match;
-    const otherUser = match?.user1?.id === userId ? match.user2 : match?.user1;
-
-    // Client status label (shown in Messages list)
     let client_label = null;
     if (otherUser?.user_type === 'professional') {
       client_label = 'Colleague';
-    } else if (match?.created_at && new Date(match.created_at).getTime() >= sevenDaysAgo) {
-      client_label = 'New Client';
+    } else if (isNew) {
+      client_label = 'New Match';
     } else {
-      client_label = 'Active Client';
+      client_label = 'Active Match';
     }
 
-    conversations.push({
-      match_id:     msg.match_id,
-      other_user:   otherUser,
-      client_label,
-      last_message: {
-        content:    msg.content,
-        created_at: msg.created_at,
-        is_mine:    msg.sender_id === userId,
-      },
-      unread_count: unreadMap[msg.match_id] || 0,
-      is_read:      msg.is_read || msg.sender_id === userId,
-    });
+    if (!lastMsg) {
+      // ── New match — no messages yet ──────────────────────────────────────
+      new_matches.push({
+        match_id    : match.id,
+        matched_at  : match.created_at,
+        other_user  : otherUser,
+        client_label,
+      });
+    } else {
+      // ── Active conversation ───────────────────────────────────────────────
+      conversations.push({
+        match_id     : match.id,
+        matched_at   : match.created_at,
+        other_user   : otherUser,
+        client_label,
+        last_message : {
+          content    : lastMsg.content,
+          created_at : lastMsg.created_at,
+          is_mine    : lastMsg.sender_id === userId,
+        },
+        unread_count : unreadMap[match.id] || 0,
+        is_read      : lastMsg.is_read || lastMsg.sender_id === userId,
+      });
+    }
   }
 
-  return { conversations };
+  // Sort conversations by last message time (newest first)
+  conversations.sort((a, b) =>
+    new Date(b.last_message.created_at) - new Date(a.last_message.created_at)
+  );
+
+  return {
+    new_matches,          // matched but no messages — show as avatar row
+    conversations,        // active chats — show as chat list
+    total_matches      : (allMatches || []).length,
+    total_unread       : Object.values(unreadMap).reduce((s, n) => s + n, 0),
+  };
 }
 
 async function getMessages(userId, matchId, page, limit) {
