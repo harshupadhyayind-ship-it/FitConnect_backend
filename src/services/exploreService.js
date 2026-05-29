@@ -4,28 +4,63 @@ const { computeScore, haversineKm } = require('./scoringService');
 
 const PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
 
-// ─── Google Places type map ───────────────────────────────────────────────────
-const FILTER_TO_PLACES_TYPE = {
-  gym:      'gym',
-  yoga:     'yoga_studio',
-  physio:   'physiotherapist',
-  sports:   'sports_club',
-  pool:     'swimming_pool',
-  crossfit: 'gym',        // no dedicated crossfit type in Google Places
-  studio:   'health',     // closest match for dance/fitness studios
-  other:    'spa',        // wellness/other health places
+// ─── Google Places config per filter ─────────────────────────────────────────
+// type        : Google Places API `type` param  (constrains result category)
+// keyword     : Narrows Google results — matched against name + address + reviews
+// mustHaveAll : result must contain EVERY tag in this list (AND check)
+//               Left empty when `type` already guarantees uniqueness (gym, pool, physio)
+// mustHaveAny : result must contain AT LEAST ONE tag from this list (OR check)
+//               Used to remove noise that sneaks through with loose Google types
+const FILTER_CONFIG = {
+  gym:      {
+    type: 'gym',
+    keyword: 'gym fitness centre',
+    mustHaveAll: [],
+    mustHaveAny: ['gym'],
+  },
+  yoga:     {
+    type: 'gym',
+    keyword: 'yoga',
+    mustHaveAll: [],
+    mustHaveAny: ['gym', 'health', 'yoga_studio'],
+  },
+  physio:   {
+    type: 'physiotherapist',
+    keyword: 'physiotherapy rehabilitation',
+    mustHaveAll: [],
+    mustHaveAny: ['physiotherapist', 'health', 'doctor'],
+  },
+  sports:   {
+    type: 'sports_club',
+    keyword: 'sports club',
+    mustHaveAll: [],
+    mustHaveAny: ['sports_club', 'stadium', 'gym', 'health'],
+  },
+  pool:     {
+    type: 'swimming_pool',
+    keyword: 'swimming pool aquatic',
+    mustHaveAll: [],
+    mustHaveAny: ['swimming_pool', 'gym', 'health'],
+  },
+  crossfit: {
+    type: 'gym',
+    keyword: 'crossfit box',
+    mustHaveAll: [],
+    mustHaveAny: ['gym'],
+  },
+  studio:   {
+    type: 'gym',
+    keyword: 'dance fitness studio',
+    mustHaveAll: [],
+    mustHaveAny: ['gym', 'health'],
+  },
+  other:    {
+    type: 'spa',
+    keyword: 'spa wellness',
+    mustHaveAll: [],
+    mustHaveAny: ['spa', 'beauty_salon', 'health'],
+  },
 };
-
-// All Google types fetched when filter = "all"
-const ALL_PLACE_TYPES = [
-  'gym',
-  'yoga_studio',
-  'physiotherapist',
-  'sports_club',
-  'swimming_pool',
-  'health',
-  'spa',
-];
 
 // Filter options returned in every /places response for frontend chips
 const PLACE_FILTERS = [
@@ -194,7 +229,7 @@ async function toggleEventAttendance(userId, eventId) {
 }
 
 // ─── Nearby Places (Google Places API) ───────────────────────────────────────
-// filter: all | gyms | yoga | physio | sports
+// filter: all | gym | yoga | physio | sports | pool | crossfit | studio | other
 
 async function getNearbyPlaces(userId, filters = {}) {
   const { type = 'all', distance_km = 5, page = 1, limit = 20 } = filters;
@@ -210,62 +245,72 @@ async function getNearbyPlaces(userId, filters = {}) {
     return { filters: PLACE_FILTERS, places: [], total: 0, page, limit, source: 'google', error: 'User location not set' };
   }
 
-  console.log(`[Places] Fetching for user=${userId} lat=${me.latitude} lng=${me.longitude} radius=${Math.min(distance_km * 1000, 50000)}m type=${type}`);
-
   const { latitude: lat, longitude: lng } = me;
-  const radiusMeters = Math.min(distance_km * 1000, 50000); // max 50km
+  const radiusMeters = Math.min(distance_km * 1000, 50000); // max 50 km
 
-  // Build list of Google Places types to fetch
-  const uniqueTypes = type === 'all'
-    ? ALL_PLACE_TYPES
-    : [...new Set([FILTER_TO_PLACES_TYPE[type] || type])];
+  console.log(`[Places] user=${userId} lat=${lat} lng=${lng} radius=${radiusMeters}m type=${type}`);
 
-  // Fetch all types in parallel
-  const allResults = await Promise.all(
-    uniqueTypes.map(async placeType => {
-      const url =
-        `https://maps.googleapis.com/maps/api/place/nearbysearch/json` +
-        `?location=${lat},${lng}` +
-        `&radius=${radiusMeters}` +
-        `&type=${placeType}` +
-        `&key=${PLACES_API_KEY}`;
-      try {
-        const res = await fetchJson(url);
-        // Log Google's status for debugging
-        if (res.status !== 'OK' && res.status !== 'ZERO_RESULTS') {
-          console.error(`[Places] type=${placeType} status=${res.status} error=${res.error_message || ''}`);
-        }
-        return res.results || [];
-      } catch (err) {
-        console.error(`[Places] fetch failed for type=${placeType}:`, err.message);
-        return [];
+  // ── Helper: one Google Places Nearby Search call ──────────────────────────
+  async function fetchGoogleType(placeType, keyword) {
+    let url =
+      `https://maps.googleapis.com/maps/api/place/nearbysearch/json` +
+      `?location=${lat},${lng}` +
+      `&radius=${radiusMeters}` +
+      `&type=${encodeURIComponent(placeType)}` +
+      `&key=${PLACES_API_KEY}`;
+    if (keyword) url += `&keyword=${encodeURIComponent(keyword)}`;
+    try {
+      const res = await fetchJson(url);
+      if (res.status !== 'OK' && res.status !== 'ZERO_RESULTS') {
+        console.error(`[Places] placeType=${placeType} status=${res.status} err=${res.error_message || ''}`);
       }
-    })
-  );
+      return res.results || [];
+    } catch (err) {
+      console.error(`[Places] fetch failed placeType=${placeType}:`, err.message);
+      return [];
+    }
+  }
 
-  // Flatten + deduplicate by place_id
-  const seen    = new Set();
-  const places  = [];
+  // ── Helper: deduplicate + validate + shape raw Google results ─────────────
+  // mustHaveAll : every tag must be present (AND)
+  // mustHaveAny : at least one tag must be present (OR) — empty = no filter
+  function shapePlaces(rawList, mustHaveAll = [], mustHaveAny = []) {
+    const seen   = new Set();
+    const result = [];
 
-  for (const results of allResults) {
-    for (const p of results) {
+    for (const p of rawList) {
       if (seen.has(p.place_id)) continue;
+
+      const types = p.types || [];
+
+      // AND check — all required tags must be present
+      if (mustHaveAll.length > 0 && !mustHaveAll.every(t => types.includes(t))) {
+        console.log(`[Places] skip(AND) "${p.name}" types=[${types.join(',')}]`);
+        continue;
+      }
+
+      // OR check — at least one tag must be present
+      if (mustHaveAny.length > 0 && !mustHaveAny.some(t => types.includes(t))) {
+        console.log(`[Places] skip(OR) "${p.name}" types=[${types.join(',')}]`);
+        continue;
+      }
+
       seen.add(p.place_id);
 
-      const pLat = p.geometry?.location?.lat;
-      const pLng = p.geometry?.location?.lng;
+      const pLat   = p.geometry?.location?.lat;
+      const pLng   = p.geometry?.location?.lng;
       const distKm = (pLat && pLng)
         ? parseFloat(haversineKm(lat, lng, pLat, pLng).toFixed(1))
         : null;
 
-      places.push({
+      result.push({
         place_id    : p.place_id,
         name        : p.name,
         address     : p.vicinity || '',
-        rating      : p.rating ?? null,
+        rating      : p.rating   ?? null,
         reviews     : p.user_ratings_total ?? 0,
         is_open     : p.opening_hours?.open_now ?? null,
-        tags        : p.types?.filter(t => !['point_of_interest','establishment'].includes(t)) || [],
+        tags        : types.filter(t => !['point_of_interest', 'establishment'].includes(t)),
         photo_url   : p.photos?.[0]?.photo_reference
                         ? getPhotoUrl(p.photos[0].photo_reference)
                         : null,
@@ -275,9 +320,41 @@ async function getNearbyPlaces(userId, filters = {}) {
         source      : 'google',
       });
     }
+
+    return result;
   }
 
-  // Sort by distance
+  // ── Fetch ─────────────────────────────────────────────────────────────────
+  let places = [];
+
+  if (type === 'all') {
+    // Fetch only fitness types: gym | yoga | physio | sports | pool | crossfit | studio
+    // 'spa' (other) is intentionally excluded
+    const fitnessFetchTypes = ['gym', 'physiotherapist', 'sports_club', 'swimming_pool'];
+
+    // A result is kept for 'all' if it has at least one fitness-related Google tag
+    const fitnessAnyTags = [
+      'gym', 'yoga_studio', 'health',
+      'physiotherapist', 'doctor',
+      'sports_club', 'stadium',
+      'swimming_pool',
+    ];
+
+    const allRaw = await Promise.all(fitnessFetchTypes.map(t => fetchGoogleType(t, null)));
+    places = shapePlaces(allRaw.flat(), [], fitnessAnyTags);
+
+  } else {
+    const config = FILTER_CONFIG[type];
+
+    if (!config) {
+      return { filters: PLACE_FILTERS, places: [], total: 0, page, limit, source: 'google', error: `Unknown filter type: ${type}` };
+    }
+
+    const rawResults = await fetchGoogleType(config.type, config.keyword);
+    places = shapePlaces(rawResults, config.mustHaveAll, config.mustHaveAny);
+  }
+
+  // Sort by distance, nearest first
   places.sort((a, b) => (a.distance_km ?? 999) - (b.distance_km ?? 999));
 
   // Paginate
