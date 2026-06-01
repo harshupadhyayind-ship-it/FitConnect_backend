@@ -62,6 +62,7 @@ fastify.register(require('./routes/matching'),      { prefix: '/api/v1/matching'
 fastify.register(require('./routes/explore'),       { prefix: '/api/v1/explore' });
 fastify.register(require('./routes/messages'),      { prefix: '/api/v1/messages' });
 fastify.register(require('./routes/enquiries'),     { prefix: '/api/v1/enquiries' });
+fastify.register(require('./routes/social'),        { prefix: '/api/v1/social' });
 fastify.register(require('./routes/notifications'), { prefix: '/api/v1/notifications' });
 fastify.register(require('./routes/admin/index'),   { prefix: '/api/v1/admin' });
 

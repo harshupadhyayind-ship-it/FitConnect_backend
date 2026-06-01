@@ -173,6 +173,50 @@ module.exports = async function profileRoutes(fastify) {
     return reply.send(result);
   });
 
+  // ── Certifications ───────────────────────────────────────────────────────────
+
+  // POST /api/v1/profiles/me/certifications  (multipart/form-data)
+  // Fields: cert_type, custom_type?, issue_date?, expiry_date?, issuing_org?
+  // File  : document  (PDF / JPG / PNG, max 10 MB) — optional
+  fastify.post('/me/certifications', auth, async (request, reply) => {
+    const parts  = request.parts();
+    const fields = {};
+    let fileData  = null;
+
+    for await (const part of parts) {
+      if (part.type === 'file') {
+        const chunks = [];
+        for await (const chunk of part.file) chunks.push(chunk);
+        fileData = {
+          buffer      : Buffer.concat(chunks),
+          mimetype    : part.mimetype,
+          originalname: part.filename,
+        };
+      } else {
+        fields[part.fieldname] = part.value;
+      }
+    }
+
+    const cert = await profileService.addCertification(request.user.sub, fields, fileData);
+    return reply.code(201).send(cert);
+  });
+
+  // GET /api/v1/profiles/me/certifications  — my own certifications
+  fastify.get('/me/certifications', auth, async (request) => {
+    return profileService.getCertifications(request.user.sub);
+  });
+
+  // GET /api/v1/profiles/:userId/certifications  — view another professional's certs
+  fastify.get('/:userId/certifications', auth, async (request) => {
+    return profileService.getCertifications(request.params.userId);
+  });
+
+  // DELETE /api/v1/profiles/me/certifications/:certId
+  fastify.delete('/me/certifications/:certId', auth, async (request, reply) => {
+    const result = await profileService.deleteCertification(request.user.sub, request.params.certId);
+    return reply.send(result);
+  });
+
   // POST /api/v1/profiles/me/device-token
   fastify.post('/me/device-token', {
     ...auth,

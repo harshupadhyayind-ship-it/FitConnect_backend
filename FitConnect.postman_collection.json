@@ -16,6 +16,11 @@
     {
       "key": "admin_token",
       "value": ""
+    },
+    {
+      "key": "auth_token",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -23,13 +28,19 @@
       "name": "Auth",
       "item": [
         {
-          "name": "Register or Fetch User",
+          "name": "Sync User (after Firebase sign-in)",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
               }
             ],
             "url": {
@@ -40,9 +51,11 @@
               "path": [
                 "auth",
                 "me"
-              ]
+              ],
+              "variable": []
             },
-            "description": "Called after any Firebase sign-in (Google, Apple, Phone). Creates user in DB if new."
+            "body": null,
+            "description": "Call this after any Firebase sign-in (Google, Apple, Phone OTP).\nRegisters the user in Supabase if they are new. Safe to call multiple times (idempotent).\n\nRequires: Authorization: Bearer <Firebase ID token>\n\nResponse: { id, user_type, onboarding_completed, is_new_user }"
           }
         },
         {
@@ -52,7 +65,13 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
               }
             ],
             "url": {
@@ -63,9 +82,11 @@
               "path": [
                 "auth",
                 "signout"
-              ]
+              ],
+              "variable": []
             },
-            "description": "Revokes Firebase refresh tokens. Mobile must also call FirebaseAuth.signOut()."
+            "body": null,
+            "description": "Revokes Firebase refresh tokens and removes device push tokens from DB.\nThe mobile client must also call FirebaseAuth.signOut() locally."
           }
         }
       ]
@@ -80,7 +101,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -91,8 +113,11 @@
               "path": [
                 "profiles",
                 "me"
-              ]
-            }
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Returns full profile of the logged-in user."
           }
         },
         {
@@ -102,7 +127,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -114,33 +140,34 @@
                 "profiles",
                 ":userId"
               ],
+              "query": [],
               "variable": [
                 {
                   "key": "userId",
-                  "value": "USER_ID_HERE"
+                  "value": "",
+                  "description": "Firebase UID of target user"
                 }
               ]
-            }
+            },
+            "description": "Returns public profile of any user."
           }
         },
         {
-          "name": "Onboard \u2014 Individual",
+          "name": "Onboard — Individual",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"John Doe\",\n  \"date_of_birth\": \"1995-06-15\",\n  \"gender\": \"male\",\n  \"fitness_goals\": [\"weight_loss\", \"muscle_gain\"],\n  \"fitness_level\": \"intermediate\",\n  \"workout_types\": [\"gym\", \"running\", \"yoga\"],\n  \"height_cm\": 175,\n  \"weight_kg\": 70,\n  \"preferred_gender_filter\": \"everyone\",\n  \"bio\": \"Fitness enthusiast looking for workout partners.\",\n  \"latitude\": 28.6139,\n  \"longitude\": 77.2090\n}"
-            },
             "url": {
               "raw": "{{base_url}}/profiles/onboard/individual",
               "host": [
@@ -150,29 +177,37 @@
                 "profiles",
                 "onboard",
                 "individual"
-              ]
+              ],
+              "variable": []
             },
-            "description": "Required: name, date_of_birth, gender, fitness_goals, fitness_level"
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Priya Sharma\",\n  \"date_of_birth\": \"1998-05-14\",\n  \"gender\": \"female\",\n  \"fitness_goals\": [\n    \"weight_loss\",\n    \"build_muscle\"\n  ],\n  \"fitness_level\": \"beginner\",\n  \"workout_types\": [\n    \"gym\",\n    \"yoga\"\n  ],\n  \"height_cm\": 163,\n  \"weight_kg\": 58,\n  \"preferred_gender_filter\": \"everyone\",\n  \"bio\": \"Love early morning workouts!\",\n  \"latitude\": 28.6139,\n  \"longitude\": 77.209\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Step 1 of individual onboarding. Marks onboarding_completed = true.\n\ngender: male | female | non_binary | prefer_not_to_say\nfitness_level: beginner | intermediate | advanced\npreferred_gender_filter: everyone | men | women | women_only"
           }
         },
         {
-          "name": "Onboard \u2014 Professional",
+          "name": "Onboard — Professional",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Jane Smith\",\n  \"specialty\": \"Personal Trainer\",\n  \"bio\": \"Certified personal trainer with 5 years experience.\",\n  \"credentials\": [\"ACE Certified\", \"CPR Certified\"],\n  \"latitude\": 28.6139,\n  \"longitude\": 77.2090\n}"
-            },
             "url": {
               "raw": "{{base_url}}/profiles/onboard/professional",
               "host": [
@@ -182,9 +217,19 @@
                 "profiles",
                 "onboard",
                 "professional"
-              ]
+              ],
+              "variable": []
             },
-            "description": "Required: name, specialty, bio, credentials"
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Rakshit Upadhyay\",\n  \"specialty\": [\n    \"Personal Trainer\",\n    \"Strength Coach\"\n  ],\n  \"bio\": \"8 years of experience helping clients transform.\",\n  \"credentials\": [\n    \"NSCA-CSCS\",\n    \"CPR Certified\"\n  ],\n  \"years_of_experience\": \"8\",\n  \"session_rate\": \"₹1500/hr\",\n  \"latitude\": 28.6517,\n  \"longitude\": 77.2219\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Step 1 of professional onboarding. Marks onboarding_completed = true.\nspecialty is an array (multi-select)."
           }
         },
         {
@@ -194,17 +239,15 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"bio\": \"Updated bio here.\",\n  \"fitness_level\": \"advanced\",\n  \"latitude\": 19.0760,\n  \"longitude\": 72.8777\n}"
-            },
             "url": {
               "raw": "{{base_url}}/profiles/me",
               "host": [
@@ -213,8 +256,19 @@
               "path": [
                 "profiles",
                 "me"
-              ]
-            }
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bio\": \"Updated bio\",\n  \"fitness_goals\": [\n    \"endurance\"\n  ],\n  \"latitude\": 28.6139,\n  \"longitude\": 77.209\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Update any editable profile fields.\nAllowed: name, bio, fitness_goals, fitness_level, workout_types, height_cm, weight_kg,\npreferred_gender_filter, preferred_training_time, latitude, longitude, location,\nspecialty, credentials, years_of_experience, session_rate,\nprompt_philosophy, prompt_best_result, prompt_love_working"
           }
         },
         {
@@ -224,7 +278,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -236,9 +291,11 @@
                 "profiles",
                 "me",
                 "photos"
-              ]
+              ],
+              "query": [],
+              "variable": []
             },
-            "description": "Returns all photos ordered by position. Position 1 = profile picture."
+            "description": "Returns up to 6 ordered profile photos. { photos: [{ id, url, position }] }"
           }
         },
         {
@@ -248,20 +305,10 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "file",
-                  "type": "file",
-                  "src": "",
-                  "description": "Image file (jpg/png)"
-                }
-              ]
-            },
             "url": {
               "raw": "{{base_url}}/profiles/me/photos",
               "host": [
@@ -271,31 +318,34 @@
                 "profiles",
                 "me",
                 "photos"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "photos",
+                  "src": [],
+                  "type": "file",
+                  "description": "JPG/PNG/WEBP, max 10 MB each. Send multiple files in one request."
+                }
               ]
             },
-            "description": "Upload a photo. Auto-assigned to next available position (1\u20136). Position 1 is profile picture. Max 6 photos."
+            "description": "Upload 1–6 profile photos as multipart/form-data. Max 6 photos total.\nPosition 1 photo becomes the avatar_url."
           }
         },
         {
-          "name": "Replace Photo",
+          "name": "Replace Single Photo",
           "request": {
             "method": "PUT",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "file",
-                  "type": "file",
-                  "description": "New image to replace the existing photo (jpg, png, webp, heic)"
-                }
-              ]
-            },
             "url": {
               "raw": "{{base_url}}/profiles/me/photos/:photoId",
               "host": [
@@ -310,11 +360,23 @@
               "variable": [
                 {
                   "key": "photoId",
-                  "value": "PHOTO_UUID"
+                  "value": "",
+                  "description": "UUID of photo to replace"
                 }
               ]
             },
-            "description": "Replace an existing photo with a new image. Keeps the same position slot. If position 1, avatar_url is updated automatically.\n\nBody: multipart/form-data with field `file`."
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "photo",
+                  "src": [],
+                  "type": "file",
+                  "description": "Replacement image file"
+                }
+              ]
+            },
+            "description": "Replace a single photo at the same position. Overwrites storage."
           }
         },
         {
@@ -324,24 +386,10 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "PHOTO_UUID_1",
-                  "type": "file",
-                  "description": "Field name = photoId to replace. Add one field per photo."
-                },
-                {
-                  "key": "PHOTO_UUID_2",
-                  "type": "file",
-                  "description": "Field name = photoId to replace."
-                }
-              ]
-            },
             "url": {
               "raw": "{{base_url}}/profiles/me/photos/replace",
               "host": [
@@ -352,9 +400,21 @@
                 "me",
                 "photos",
                 "replace"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "<photoId>",
+                  "src": [],
+                  "type": "file",
+                  "description": "Use the photoId UUID as the field name for each file"
+                }
               ]
             },
-            "description": "Replace multiple photos in a single request.\n\nEach form field name must be the UUID of the photo to replace, and the value is the new image file.\n\nExample fields:\n- `abc-123-uuid` \u2192 file1.jpg\n- `def-456-uuid` \u2192 file2.png\n\nReturns: `{ photos: [...] }` \u2014 all replaced photos in order."
+            "description": "Replace multiple photos in one request.\nField name = the photoId to replace. Value = new file."
           }
         },
         {
@@ -364,7 +424,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -381,11 +442,12 @@
               "variable": [
                 {
                   "key": "photoId",
-                  "value": "PHOTO_UUID"
+                  "value": "",
+                  "description": "UUID of photo to delete"
                 }
               ]
             },
-            "description": "Delete a photo by ID. Cannot delete your only remaining photo."
+            "description": "Delete a profile photo. Must keep at least 1 photo."
           }
         },
         {
@@ -395,17 +457,15 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"order\": [\n    { \"id\": \"photo-uuid-1\", \"position\": 1 },\n    { \"id\": \"photo-uuid-2\", \"position\": 2 },\n    { \"id\": \"photo-uuid-3\", \"position\": 3 }\n  ]\n}"
-            },
             "url": {
               "raw": "{{base_url}}/profiles/me/photos/reorder",
               "host": [
@@ -416,9 +476,178 @@
                 "me",
                 "photos",
                 "reorder"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": [\n    {\n      \"id\": \"photo-uuid-1\",\n      \"position\": 1\n    },\n    {\n      \"id\": \"photo-uuid-2\",\n      \"position\": 2\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Change photo order. Positions must be 1–6, unique, all belong to this user.\nPosition 1 becomes avatar_url."
+          }
+        },
+        {
+          "name": "Add Certification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/profiles/me/certifications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "profiles",
+                "me",
+                "certifications"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "cert_type",
+                  "value": "NSCA-CSCS",
+                  "type": "text",
+                  "description": "NSCA-CSCS | ACE | NASM-CPT | RYT-200 | Precision Nutrition | Other"
+                },
+                {
+                  "key": "custom_type",
+                  "value": "",
+                  "type": "text",
+                  "description": "Required when cert_type = Other"
+                },
+                {
+                  "key": "issue_date",
+                  "value": "01/2023",
+                  "type": "text",
+                  "description": "MM/YYYY"
+                },
+                {
+                  "key": "expiry_date",
+                  "value": "01/2026",
+                  "type": "text",
+                  "description": "MM/YYYY (optional)"
+                },
+                {
+                  "key": "issuing_org",
+                  "value": "National Strength & Conditioning Association",
+                  "type": "text"
+                },
+                {
+                  "key": "document",
+                  "src": [],
+                  "type": "file",
+                  "description": "PDF / JPG / PNG — max 10 MB (optional)"
+                }
               ]
             },
-            "description": "Reorder photos. Position 1 becomes the profile picture (avatar_url). Pass only the photos you want to reorder."
+            "description": "Upload a professional certification. multipart/form-data.\ncert_type is required. Document file is optional.\nVerified certifications get a badge and rank higher in search."
+          }
+        },
+        {
+          "name": "Get My Certifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/profiles/me/certifications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "profiles",
+                "me",
+                "certifications"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "List all certifications for the logged-in user.\nResponse: { certifications: [{ id, cert_type, custom_type, document_url, issue_date, expiry_date, issuing_org, is_verified }] }"
+          }
+        },
+        {
+          "name": "Get Certifications by User ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/profiles/:userId/certifications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "profiles",
+                ":userId",
+                "certifications"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "",
+                  "description": "Firebase UID of the professional"
+                }
+              ]
+            },
+            "description": "View certifications for any professional (used on their profile card)."
+          }
+        },
+        {
+          "name": "Delete Certification",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/profiles/me/certifications/:certId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "profiles",
+                "me",
+                "certifications",
+                ":certId"
+              ],
+              "variable": [
+                {
+                  "key": "certId",
+                  "value": "",
+                  "description": "UUID of the certification"
+                }
+              ]
+            },
+            "description": "Deletes certification and removes document from Supabase Storage."
           }
         },
         {
@@ -428,17 +657,15 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"token\": \"FCM_DEVICE_TOKEN_HERE\",\n  \"platform\": \"android\"\n}"
-            },
             "url": {
               "raw": "{{base_url}}/profiles/me/device-token",
               "host": [
@@ -448,9 +675,19 @@
                 "profiles",
                 "me",
                 "device-token"
-              ]
+              ],
+              "variable": []
             },
-            "description": "platform: android | ios"
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"fcm-or-apns-token-here\",\n  \"platform\": \"android\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Register FCM (Android) or APNs (iOS) push token.\nplatform: android | ios\nCalled on app launch after sign-in."
           }
         }
       ]
@@ -459,13 +696,14 @@
       "name": "Home",
       "item": [
         {
-          "name": "Get Home Screen Data",
+          "name": "Get Home Feed",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -475,9 +713,11 @@
               ],
               "path": [
                 "home"
-              ]
+              ],
+              "query": [],
+              "variable": []
             },
-            "description": "Single call for home screen. Returns: user info, sports_categories, trainers (top 10 nearest), fit_buddies (top 10 by compatibility)."
+            "description": "Returns personalised home screen data:\n- today's checkin status\n- streak info\n- people you may know\n- nearby trainers preview\n- upcoming events preview"
           }
         }
       ]
@@ -492,7 +732,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -507,27 +748,27 @@
                 {
                   "key": "specialty",
                   "value": "",
-                  "disabled": true,
-                  "description": "e.g. Personal Trainer, Yoga Coach"
+                  "description": "Filter by specialty e.g. \"Yoga\" (optional)"
                 },
                 {
                   "key": "location",
                   "value": "",
-                  "disabled": true,
-                  "description": "City name filter"
+                  "description": "Filter by location text e.g. \"Delhi\" (optional)"
                 },
                 {
                   "key": "page",
-                  "value": "1"
+                  "value": "1",
+                  "description": ""
                 },
                 {
                   "key": "limit",
                   "value": "20",
-                  "description": "Max: 50"
+                  "description": "Max 50"
                 }
-              ]
+              ],
+              "variable": []
             },
-            "description": "Returns professional users sorted by proximity then rating."
+            "description": "Returns paginated list of professionals sorted by distance then rating.\nEach trainer includes: id, name, avatar_url, specialty[], location, rating, reviews_count, distance_km, session_rate, years_of_experience"
           }
         },
         {
@@ -537,7 +778,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -549,14 +791,16 @@
                 "trainers",
                 ":trainerId"
               ],
+              "query": [],
               "variable": [
                 {
                   "key": "trainerId",
-                  "value": "TRAINER_USER_ID"
+                  "value": "",
+                  "description": "Firebase UID of the professional"
                 }
               ]
             },
-            "description": "Full public profile: specialty, session_rate, years_of_experience, prompts, credentials, rating."
+            "description": "Full profile of a single professional including bio, credentials, prompts, session_rate."
           }
         }
       ]
@@ -565,23 +809,21 @@
       "name": "Enquiries",
       "item": [
         {
-          "name": "Send Enquiry to Trainer",
+          "name": "Send Enquiry",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"trainer_id\": \"TRAINER_USER_ID\",\n  \"message\": \"Hi! I've been struggling with consistency for months. Your profile resonated with me - I'd love to start sessions next week. Prefer morning slots.\"\n}"
-            },
             "url": {
               "raw": "{{base_url}}/enquiries",
               "host": [
@@ -589,19 +831,30 @@
               ],
               "path": [
                 "enquiries"
-              ]
+              ],
+              "variable": []
             },
-            "description": "Individual user sends an enquiry to a professional trainer. One enquiry per trainer-client pair."
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trainer_id\": \"trainer-firebase-uid\",\n  \"message\": \"Hi, I am interested in personal training sessions.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Send an enquiry to a professional trainer. Returns 409 if a pending enquiry already exists."
           }
         },
         {
-          "name": "Get My Enquiries (Trainer)",
+          "name": "Get My Enquiries",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -616,29 +869,33 @@
                 {
                   "key": "status",
                   "value": "new",
-                  "description": "new | pending | accepted | declined | all"
+                  "description": "Filter: new | accepted | declined | all (default: all)"
                 },
                 {
                   "key": "page",
-                  "value": "1"
+                  "value": "1",
+                  "description": ""
                 },
                 {
                   "key": "limit",
-                  "value": "20"
+                  "value": "20",
+                  "description": ""
                 }
-              ]
+              ],
+              "variable": []
             },
-            "description": "Trainer gets their list of enquiries with client profiles and distance."
+            "description": "Returns enquiries involving the logged-in user (sent or received)."
           }
         },
         {
-          "name": "Get Enquiry Stats (Trainer)",
+          "name": "Get Enquiry Stats",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -649,9 +906,11 @@
               "path": [
                 "enquiries",
                 "stats"
-              ]
+              ],
+              "query": [],
+              "variable": []
             },
-            "description": "Returns { new, this_week, total } counts for the trainer's enquiries dashboard."
+            "description": "Returns enquiry counts: { total, new, accepted, declined } for the logged-in professional."
           }
         },
         {
@@ -661,7 +920,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -673,14 +933,16 @@
                 "enquiries",
                 ":enquiryId"
               ],
+              "query": [],
               "variable": [
                 {
                   "key": "enquiryId",
-                  "value": "ENQUIRY_ID"
+                  "value": "",
+                  "description": "UUID of the enquiry"
                 }
               ]
             },
-            "description": "Full detail: client fitness profile, age, distance, prompts, workout types, available times, and their message."
+            "description": "Full detail of a single enquiry."
           }
         },
         {
@@ -690,7 +952,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -706,11 +969,13 @@
               "variable": [
                 {
                   "key": "enquiryId",
-                  "value": "ENQUIRY_ID"
+                  "value": "",
+                  "description": "UUID of the enquiry"
                 }
               ]
             },
-            "description": "Trainer accepts enquiry. Creates a match and returns match_id to open chat with /messages/:matchId."
+            "body": null,
+            "description": "Professional accepts a client enquiry. Status changes to accepted."
           }
         },
         {
@@ -720,7 +985,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -736,10 +1002,13 @@
               "variable": [
                 {
                   "key": "enquiryId",
-                  "value": "ENQUIRY_ID"
+                  "value": "",
+                  "description": "UUID of the enquiry"
                 }
               ]
-            }
+            },
+            "body": null,
+            "description": "Professional declines a client enquiry. Status changes to declined."
           }
         }
       ]
@@ -754,7 +1023,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -768,39 +1038,39 @@
               ],
               "query": [
                 {
+                  "key": "distance_km",
+                  "value": "50",
+                  "description": "Max distance radius in km"
+                },
+                {
                   "key": "fitness_goal",
                   "value": "",
-                  "disabled": true,
-                  "description": "Optional: weight_loss, muscle_gain, etc."
+                  "description": "Filter by goal e.g. weight_loss (optional)"
                 },
                 {
                   "key": "workout_type",
                   "value": "",
-                  "disabled": true,
-                  "description": "Optional: gym, running, yoga, swimming, cycling, horse_riding, golf, tennis, calisthenics, badminton, climbing, volleyball"
-                },
-                {
-                  "key": "distance_km",
-                  "value": "50",
-                  "description": "Default: 50"
+                  "description": "Filter by workout type e.g. gym (optional)"
                 },
                 {
                   "key": "gender",
                   "value": "",
-                  "disabled": true,
-                  "description": "Optional: everyone, men, women, women_only"
+                  "description": "Filter: male | female (optional)"
                 },
                 {
                   "key": "page",
-                  "value": "1"
+                  "value": "1",
+                  "description": ""
                 },
                 {
                   "key": "limit",
                   "value": "20",
-                  "description": "Max: 50"
+                  "description": "Max 50"
                 }
-              ]
-            }
+              ],
+              "variable": []
+            },
+            "description": "Returns paginated list of individual users for swiping/matching, sorted by compatibility score.\nExcludes already-liked and already-matched users."
           }
         }
       ]
@@ -809,13 +1079,14 @@
       "name": "Explore",
       "item": [
         {
-          "name": "Explore People",
+          "name": "Get People (Explore tab)",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -829,46 +1100,50 @@
               ],
               "query": [
                 {
+                  "key": "distance_km",
+                  "value": "50",
+                  "description": "Max distance in km (default 50)"
+                },
+                {
                   "key": "fitness_goal",
                   "value": "",
-                  "disabled": true,
-                  "description": "Optional filter"
+                  "description": "Filter by goal e.g. weight_loss (optional)"
                 },
                 {
                   "key": "workout_type",
                   "value": "",
-                  "disabled": true,
-                  "description": "Optional: gym, running, yoga, swimming, cycling, horse_riding, golf, tennis, calisthenics, badminton, climbing, volleyball"
-                },
-                {
-                  "key": "distance_km",
-                  "value": "50"
+                  "description": "Filter by type e.g. gym (optional)"
                 },
                 {
                   "key": "gender",
                   "value": "",
-                  "disabled": true
+                  "description": "everyone | men | women (optional)"
                 },
                 {
                   "key": "page",
-                  "value": "1"
+                  "value": "1",
+                  "description": ""
                 },
                 {
                   "key": "limit",
-                  "value": "20"
+                  "value": "20",
+                  "description": "Max 50"
                 }
-              ]
-            }
+              ],
+              "variable": []
+            },
+            "description": "People tab on the Explore screen. Returns nearby individuals sorted by compatibility score."
           }
         },
         {
-          "name": "Explore Events",
+          "name": "Get Events",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -882,36 +1157,98 @@
               ],
               "query": [
                 {
+                  "key": "type",
+                  "value": "all",
+                  "description": "Filter chip: all | gym | yoga | physio | sports | run | event"
+                },
+                {
                   "key": "date",
                   "value": "",
-                  "disabled": true,
-                  "description": "Optional: YYYY-MM-DD to filter by specific day (calendar tap)"
+                  "description": "YYYY-MM-DD — filter by calendar day (optional)"
+                },
+                {
+                  "key": "lat",
+                  "value": "",
+                  "description": "User latitude for distance sorting (optional)"
+                },
+                {
+                  "key": "lng",
+                  "value": "",
+                  "description": "User longitude for distance sorting (optional)"
+                },
+                {
+                  "key": "distance_km",
+                  "value": "50",
+                  "description": "Max distance in km when lat/lng provided (default 50)"
                 },
                 {
                   "key": "page",
-                  "value": "1"
+                  "value": "1",
+                  "description": ""
                 },
                 {
                   "key": "limit",
-                  "value": "20"
+                  "value": "20",
+                  "description": "Max 50"
                 }
-              ]
+              ],
+              "variable": []
             },
-            "description": "Returns upcoming events. Use ?date=2026-03-24 to filter by a specific day for the calendar view."
+            "description": "Events tab on the Explore screen. Returns upcoming community events.\nEach event includes is_going (whether user has RSVP'd).\nFilter by type chip and/or calendar date. Pass lat/lng for distance-sorted results."
           }
         },
         {
-          "name": "Nearby Places",
+          "name": "Toggle Event RSVP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/explore/events/:eventId/attend",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "explore",
+                "events",
+                ":eventId",
+                "attend"
+              ],
+              "variable": [
+                {
+                  "key": "eventId",
+                  "value": "",
+                  "description": "UUID of the event"
+                }
+              ]
+            },
+            "body": null,
+            "description": "Toggle attendance for a public event.\nReturns { is_going: true } if joined, { is_going: false } if left."
+          }
+        },
+        {
+          "name": "Get Nearby Places",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
-              "raw": "{{base_url}}/explore/places?distance_km=10&page=1&limit=20",
+              "raw": "{{base_url}}/explore/places?type=all&distance_km=5&page=1&limit=20",
               "host": [
                 "{{base_url}}"
               ],
@@ -922,26 +1259,28 @@
               "query": [
                 {
                   "key": "type",
-                  "value": "",
-                  "disabled": true,
-                  "description": "gym | yoga | physio | sports | pool | crossfit | studio | other | all"
+                  "value": "all",
+                  "description": "Filter: all | gym | yoga | physio | sports | pool | crossfit | studio | other\n\ntype=all → parallel fetch from gym+physio+sports_club+swimming_pool types, returns fitness places only (no spa)\nSpecific type → single Google Places call with keyword + tag filter"
                 },
                 {
                   "key": "distance_km",
-                  "value": "10",
-                  "description": "Search radius in km (default 10)"
+                  "value": "5",
+                  "description": "Search radius in km (default 5, max 50)"
                 },
                 {
                   "key": "page",
-                  "value": "1"
+                  "value": "1",
+                  "description": ""
                 },
                 {
                   "key": "limit",
-                  "value": "20"
+                  "value": "20",
+                  "description": "Max 50"
                 }
-              ]
+              ],
+              "variable": []
             },
-            "description": "Returns venues (gyms, yoga studios, physio clinics etc.) sorted by distance from user."
+            "description": "Nearby fitness places via Google Places Nearby Search API.\n\nAlways returns filters[] for frontend chips:\n[\n  { key: \"all\",      label: \"All\",      icon: \"filter_list\"    },\n  { key: \"gym\",      label: \"Gyms\",     icon: \"fitness_center\" },\n  { key: \"yoga\",     label: \"Yoga\",     icon: \"self_improvement\" },\n  { key: \"physio\",   label: \"Physio\",   icon: \"medical_services\" },\n  { key: \"sports\",   label: \"Sports\",   icon: \"sports\"         },\n  { key: \"pool\",     label: \"Pool\",     icon: \"pool\"           },\n  { key: \"crossfit\", label: \"CrossFit\", icon: \"directions_run\" },\n  { key: \"studio\",   label: \"Studio\",   icon: \"music_note\"     },\n  { key: \"other\",    label: \"Other\",    icon: \"spa\"            }\n]\n\nEach place: place_id, name, address, rating, reviews, is_open, tags[], photo_url, distance_km"
           }
         },
         {
@@ -951,7 +1290,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -967,11 +1307,12 @@
                 {
                   "key": "q",
                   "value": "yoga",
-                  "description": "Min 2 characters. Searches: people, trainers, events, venues"
+                  "description": "Search term (min 2 chars)"
                 }
-              ]
+              ],
+              "variable": []
             },
-            "description": "Returns { people, trainers, events, venues } all in one response."
+            "description": "Cross-entity search across people, professionals, and events.\nResponse: { people: [...], trainers: [...], events: [...] }"
           }
         }
       ]
@@ -986,7 +1327,13 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
               }
             ],
             "url": {
@@ -1002,10 +1349,13 @@
               "variable": [
                 {
                   "key": "targetUserId",
-                  "value": "TARGET_USER_ID"
+                  "value": "",
+                  "description": "Firebase UID of user to like"
                 }
               ]
-            }
+            },
+            "body": null,
+            "description": "Like another user. If they already liked you → match is created.\nResponse: { liked: true, matched: true/false, match_id? }"
           }
         },
         {
@@ -1015,7 +1365,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1031,42 +1382,12 @@
               "variable": [
                 {
                   "key": "targetUserId",
-                  "value": "TARGET_USER_ID"
+                  "value": "",
+                  "description": "Firebase UID of user to unlike"
                 }
               ]
-            }
-          }
-        },
-        {
-          "name": "Get My Matches",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/matching/matches?page=1&limit=20",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "matching",
-                "matches"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                }
-              ]
-            }
+            },
+            "description": "Remove a like you previously sent."
           }
         },
         {
@@ -1076,7 +1397,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1088,8 +1410,11 @@
                 "matching",
                 "likes",
                 "sent"
-              ]
-            }
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "List of users you have liked but not yet matched with."
           }
         },
         {
@@ -1099,7 +1424,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1111,9 +1437,11 @@
                 "matching",
                 "likes",
                 "received"
-              ]
+              ],
+              "query": [],
+              "variable": []
             },
-            "description": "Get all users who have liked the current user (pending \u2014 not yet matched).\n\nReturns: `{ likes: [{ liker_user_id, created_at, profile: { id, name, avatar_url, fitness_goals, fitness_level, current_streak } }], total }`\n\nAlready-matched users are excluded from this list."
+            "description": "List of users who liked you but you haven't liked back yet."
           }
         },
         {
@@ -1123,7 +1451,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1139,10 +1468,12 @@
               "variable": [
                 {
                   "key": "matchId",
-                  "value": "MATCH_ID"
+                  "value": "",
+                  "description": "UUID of the match"
                 }
               ]
-            }
+            },
+            "description": "Delete a match and all its messages."
           }
         }
       ]
@@ -1157,7 +1488,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1167,18 +1499,22 @@
               ],
               "path": [
                 "messages"
-              ]
-            }
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Returns full chat state for the Messages screen:\n\n{\n  new_matches: [...],    // matched but no messages yet — show as avatar row\n  conversations: [...],  // active chats sorted by latest message\n  total_matches: 12,\n  total_unread: 3\n}\n\nnew_matches items: { match_id, matched_at, other_user, client_label }\nconversations items: { match_id, other_user, client_label, last_message, unread_count, is_read }"
           }
         },
         {
-          "name": "Get Message History",
+          "name": "Get Messages",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1190,23 +1526,27 @@
                 "messages",
                 ":matchId"
               ],
-              "variable": [
-                {
-                  "key": "matchId",
-                  "value": "MATCH_ID"
-                }
-              ],
               "query": [
                 {
                   "key": "page",
-                  "value": "1"
+                  "value": "1",
+                  "description": ""
                 },
                 {
                   "key": "limit",
-                  "value": "30"
+                  "value": "30",
+                  "description": ""
+                }
+              ],
+              "variable": [
+                {
+                  "key": "matchId",
+                  "value": "",
+                  "description": "UUID of the match"
                 }
               ]
-            }
+            },
+            "description": "Paginated message history for a match. Returns messages in chronological order."
           }
         },
         {
@@ -1216,17 +1556,15 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"content\": \"Hey! Want to work out together?\"\n}"
-            },
             "url": {
               "raw": "{{base_url}}/messages/:matchId",
               "host": [
@@ -1239,20 +1577,32 @@
               "variable": [
                 {
                   "key": "matchId",
-                  "value": "MATCH_ID"
+                  "value": "",
+                  "description": "UUID of the match"
                 }
               ]
-            }
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Hey! Want to train together this weekend?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Send a message in a match conversation. Triggers push notification to recipient."
           }
         },
         {
-          "name": "Mark Messages as Read",
+          "name": "Mark as Read",
           "request": {
             "method": "PATCH",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1268,10 +1618,13 @@
               "variable": [
                 {
                   "key": "matchId",
-                  "value": "MATCH_ID"
+                  "value": "",
+                  "description": "UUID of the match"
                 }
               ]
-            }
+            },
+            "body": null,
+            "description": "Mark all unread messages in a conversation as read."
           }
         }
       ]
@@ -1286,7 +1639,13 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
               }
             ],
             "url": {
@@ -1296,9 +1655,11 @@
               ],
               "path": [
                 "checkin"
-              ]
+              ],
+              "variable": []
             },
-            "description": "Single-tap daily check-in. Call once per day."
+            "body": null,
+            "description": "Record today's workout check-in. One per day.\nUpdates streak, awards badges, returns { streak, badges_earned[] }."
           }
         },
         {
@@ -1308,7 +1669,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1319,8 +1681,11 @@
               "path": [
                 "checkin",
                 "streak"
-              ]
-            }
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Returns { current_streak, longest_streak, total_checkins, checked_in_today }."
           }
         },
         {
@@ -1330,7 +1695,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1341,18 +1707,22 @@
               "path": [
                 "checkin",
                 "badges"
-              ]
-            }
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Returns all earned badges: [{ badge_type, earned_at }]\nbadge_type values: streak_7, streak_30, streak_90, streak_180, streak_365"
           }
         },
         {
-          "name": "Get Check-in History",
+          "name": "Get History",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1363,18 +1733,22 @@
               "path": [
                 "checkin",
                 "history"
-              ]
-            }
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Returns last 30 days of check-in dates. Used for calendar heat map."
           }
         },
         {
-          "name": "Get Streaks Page Data",
+          "name": "Get Streaks Page",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1385,9 +1759,11 @@
               "path": [
                 "checkin",
                 "streaks-page"
-              ]
+              ],
+              "query": [],
+              "variable": []
             },
-            "description": "Single call for the full Streaks screen. Returns: streak {current, longest, total}, checked_in_today, motivational message, calendar {year, month, days_in_month, checked_days[]}, goals_progress [{goal, label, progress%}]."
+            "description": "Combined data for the Streaks screen: streak info + badges + check-in history + leaderboard preview."
           }
         }
       ]
@@ -1402,7 +1778,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1416,14 +1793,18 @@
               "query": [
                 {
                   "key": "page",
-                  "value": "1"
+                  "value": "1",
+                  "description": ""
                 },
                 {
                   "key": "limit",
-                  "value": "20"
+                  "value": "20",
+                  "description": ""
                 }
-              ]
-            }
+              ],
+              "variable": []
+            },
+            "description": "Returns paginated notifications sorted newest first.\nEach item: { id, type, payload, is_read, created_at }\ntype values: match, message, like, event, broadcast"
           }
         },
         {
@@ -1433,7 +1814,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1444,18 +1826,22 @@
               "path": [
                 "notifications",
                 "read-all"
-              ]
-            }
+              ],
+              "variable": []
+            },
+            "body": null,
+            "description": "Mark all unread notifications as read."
           }
         },
         {
-          "name": "Mark One as Read",
+          "name": "Mark Notification Read",
           "request": {
             "method": "PATCH",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1471,16 +1857,416 @@
               "variable": [
                 {
                   "key": "id",
-                  "value": "NOTIFICATION_ID"
+                  "value": "",
+                  "description": "UUID of the notification"
                 }
               ]
-            }
+            },
+            "body": null,
+            "description": "Mark a single notification as read."
           }
         }
       ]
     },
     {
-      "name": "Admin \u2014 Users",
+      "name": "Social",
+      "item": [
+        {
+          "name": "Get Professionals Near You",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/social/professionals?distance_km=50&limit_per_section=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "social",
+                "professionals"
+              ],
+              "query": [
+                {
+                  "key": "distance_km",
+                  "value": "50",
+                  "description": "Max distance in km (default 50)"
+                },
+                {
+                  "key": "limit_per_section",
+                  "value": "10",
+                  "description": "Max professionals per section row (default 10)"
+                }
+              ],
+              "variable": []
+            },
+            "description": "Social screen → Professionals tab.\nReturns professionals grouped into specialty sections.\n\nResponse:\n{\n  sections: [\n    { key: \"trainers\",      title: \"TRAINERS NEAR YOU\",  professionals: [...] },\n    { key: \"yoga_wellness\", title: \"YOGA & WELLNESS\",    professionals: [...] },\n    { key: \"nutrition\",     title: \"NUTRITION & DIET\",   professionals: [...] },\n    { key: \"physio\",        title: \"PHYSIO & REHAB\",     professionals: [...] },\n    { key: \"sports\",        title: \"SPORTS COACHING\",    professionals: [...] }\n  ],\n  total_professionals: 42\n}\n\nOnly non-empty sections are returned. Each professional:\nid, name, avatar_url, specialty[], location, rating, reviews_count, distance_km"
+          }
+        },
+        {
+          "name": "Get My Groups",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/social/groups",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "social",
+                "groups"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Social screen → Groups tab.\nReturns all groups the user is a member of.\nEach group: id, name, description, cover_image_url, category, member_count, is_private, role (admin|member), joined_at"
+          }
+        },
+        {
+          "name": "Create Group",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/social/groups",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "social",
+                "groups"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Morning Runners Delhi\",\n  \"description\": \"Daily 6 AM runs around Lodhi Garden\",\n  \"category\": \"running\",\n  \"is_private\": false,\n  \"cover_image_url\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Create a new group. Creator is automatically added as admin.\ncategory: running | yoga | gym | cycling | sports | nutrition | general\nReturns group + role: \"admin\""
+          }
+        },
+        {
+          "name": "Get Group Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/social/groups/:groupId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "social",
+                "groups",
+                ":groupId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "",
+                  "description": "UUID of the group"
+                }
+              ]
+            },
+            "description": "Full group details including first 10 members preview.\nIncludes is_member, role, joined_at for the requesting user."
+          }
+        },
+        {
+          "name": "Join Group",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/social/groups/:groupId/join",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "social",
+                "groups",
+                ":groupId",
+                "join"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "",
+                  "description": "UUID of the group"
+                }
+              ]
+            },
+            "body": null,
+            "description": "Logged-in user joins a group. Returns 409 if already a member."
+          }
+        },
+        {
+          "name": "Add Member (Admin only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/social/groups/:groupId/members",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "social",
+                "groups",
+                ":groupId",
+                "members"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "",
+                  "description": "UUID of the group"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"firebase-uid-of-user-to-add\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Admin adds a specific user to the group.\nReturns 403 if requester is not an admin."
+          }
+        },
+        {
+          "name": "Leave Group",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/social/groups/:groupId/leave",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "social",
+                "groups",
+                ":groupId",
+                "leave"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "",
+                  "description": "UUID of the group"
+                }
+              ]
+            },
+            "description": "Logged-in user leaves the group.\nReturns 400 if user is the group creator (must delete group first)."
+          }
+        },
+        {
+          "name": "Create Group Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/social/groups/:groupId/events",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "social",
+                "groups",
+                ":groupId",
+                "events"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "",
+                  "description": "UUID of the group"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Sunday Long Run\",\n  \"description\": \"Easy 10 km around Lodhi Garden\",\n  \"start_date\": \"2026-06-08T06:00:00Z\",\n  \"end_date\": \"2026-06-08T08:00:00Z\",\n  \"location\": \"Lodhi Garden, New Delhi\",\n  \"latitude\": 28.5936,\n  \"longitude\": 77.2202,\n  \"cover_image_url\": \"\",\n  \"is_free\": true,\n  \"price\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Any group member can create an event. Creator is auto-RSVP'd (going_count starts at 1).\nReturns the event with is_going: true."
+          }
+        },
+        {
+          "name": "Get Group Events",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/social/groups/:groupId/events?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "social",
+                "groups",
+                ":groupId",
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": ""
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": ""
+                }
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "",
+                  "description": "UUID of the group"
+                }
+              ]
+            },
+            "description": "Upcoming events for a group. Only accessible to members.\nEach event includes is_going."
+          }
+        },
+        {
+          "name": "Toggle Group Event RSVP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/social/groups/:groupId/events/:eventId/attend",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "social",
+                "groups",
+                ":groupId",
+                "events",
+                ":eventId",
+                "attend"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "",
+                  "description": "UUID of the group"
+                },
+                {
+                  "key": "eventId",
+                  "value": "",
+                  "description": "UUID of the group event"
+                }
+              ]
+            },
+            "body": null,
+            "description": "Toggle RSVP for a group event. Returns { is_going: true/false }.\nOnly group members can RSVP."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Users",
       "item": [
         {
           "name": "List Users",
@@ -1489,7 +2275,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1503,44 +2290,40 @@
               ],
               "query": [
                 {
-                  "key": "search",
-                  "value": "",
-                  "disabled": true,
-                  "description": "Search by name/email"
-                },
-                {
-                  "key": "user_type",
-                  "value": "individual",
-                  "disabled": true,
-                  "description": "individual | professional"
-                },
-                {
-                  "key": "status",
-                  "value": "active",
-                  "disabled": true,
-                  "description": "active | banned | suspended"
-                },
-                {
                   "key": "page",
-                  "value": "1"
+                  "value": "1",
+                  "description": ""
                 },
                 {
                   "key": "limit",
                   "value": "20",
-                  "description": "Max: 100"
+                  "description": ""
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search by name or email (optional)"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Filter: active | banned | suspended (optional)"
                 }
-              ]
-            }
+              ],
+              "variable": []
+            },
+            "description": "Admin: paginated list of all users. Requires admin role."
           }
         },
         {
-          "name": "Get User Detail",
+          "name": "Get User Detail (Admin)",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1553,13 +2336,16 @@
                 "users",
                 ":userId"
               ],
+              "query": [],
               "variable": [
                 {
                   "key": "userId",
-                  "value": "USER_ID"
+                  "value": "",
+                  "description": "Firebase UID"
                 }
               ]
-            }
+            },
+            "description": "Admin: full user profile."
           }
         },
         {
@@ -1569,17 +2355,15 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"reason\": \"Violation of community guidelines\"\n}"
-            },
             "url": {
               "raw": "{{base_url}}/admin/users/:userId/ban",
               "host": [
@@ -1594,10 +2378,21 @@
               "variable": [
                 {
                   "key": "userId",
-                  "value": "USER_ID"
+                  "value": "",
+                  "description": "Firebase UID"
                 }
               ]
-            }
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Spam / inappropriate content\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Permanently ban a user."
           }
         },
         {
@@ -1607,7 +2402,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1624,10 +2420,13 @@
               "variable": [
                 {
                   "key": "userId",
-                  "value": "USER_ID"
+                  "value": "",
+                  "description": "Firebase UID"
                 }
               ]
-            }
+            },
+            "body": null,
+            "description": "Remove ban from a user."
           }
         },
         {
@@ -1637,17 +2436,15 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"reason\": \"Inappropriate behavior\",\n  \"suspend_until\": \"2026-05-01T00:00:00.000Z\"\n}"
-            },
             "url": {
               "raw": "{{base_url}}/admin/users/:userId/suspend",
               "host": [
@@ -1662,10 +2459,21 @@
               "variable": [
                 {
                   "key": "userId",
-                  "value": "USER_ID"
+                  "value": "",
+                  "description": "Firebase UID"
                 }
               ]
-            }
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Temporary suspension — review pending\",\n  \"duration_days\": 7\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Temporarily suspend a user."
           }
         },
         {
@@ -1675,7 +2483,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1692,10 +2501,13 @@
               "variable": [
                 {
                   "key": "userId",
-                  "value": "USER_ID"
+                  "value": "",
+                  "description": "Firebase UID"
                 }
               ]
-            }
+            },
+            "body": null,
+            "description": "Lift suspension from a user."
           }
         },
         {
@@ -1705,7 +2517,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1722,40 +2535,13 @@
               "variable": [
                 {
                   "key": "userId",
-                  "value": "USER_ID"
+                  "value": "",
+                  "description": "Firebase UID"
                 }
               ]
-            }
-          }
-        },
-        {
-          "name": "Verify User",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/admin/users/:userId/verify",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "users",
-                ":userId",
-                "verify"
-              ],
-              "variable": [
-                {
-                  "key": "userId",
-                  "value": "USER_ID"
-                }
-              ]
-            }
+            },
+            "body": null,
+            "description": "Mark a professional as verified (adds verified badge)."
           }
         },
         {
@@ -1765,7 +2551,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1782,10 +2569,13 @@
               "variable": [
                 {
                   "key": "userId",
-                  "value": "USER_ID"
+                  "value": "",
+                  "description": "Firebase UID"
                 }
               ]
-            }
+            },
+            "body": null,
+            "description": "Give a user admin privileges."
           }
         },
         {
@@ -1795,7 +2585,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1812,30 +2603,31 @@
               "variable": [
                 {
                   "key": "userId",
-                  "value": "USER_ID"
+                  "value": "",
+                  "description": "Firebase UID"
                 }
               ]
-            }
+            },
+            "body": null,
+            "description": "Remove admin privileges from a user."
           }
         },
         {
-          "name": "Update User Profile (Admin)",
+          "name": "Update User (Admin)",
           "request": {
             "method": "PATCH",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Updated Name\",\n  \"bio\": \"Updated bio.\",\n  \"fitness_level\": \"advanced\",\n  \"preferred_gender_filter\": \"everyone\",\n  \"location\": \"Mumbai\",\n  \"specialty\": [\"Personal Trainer\", \"Yoga Coach\"],\n  \"years_of_experience\": \"5-10\",\n  \"session_rate\": \"\u20b91,000-\u20b91,500 / session\",\n  \"preferred_training_time\": [\"mornings\", \"evenings\"]\n}"
-            },
             "url": {
               "raw": "{{base_url}}/admin/users/:userId",
               "host": [
@@ -1849,11 +2641,21 @@
               "variable": [
                 {
                   "key": "userId",
-                  "value": "USER_ID"
+                  "value": "",
+                  "description": "Firebase UID"
                 }
               ]
             },
-            "description": "Edit any profile field. Allowed: name, email, phone, bio, gender, date_of_birth, height_cm, weight_kg, fitness_level, fitness_goals, workout_types, specialty, credentials, user_type, preferred_gender_filter, preferred_training_time, location, years_of_experience, session_rate, rating, target_audience, prompt_philosophy, prompt_best_result, prompt_love_working."
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"bio\": \"Updated bio\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Admin edit of any user field."
           }
         },
         {
@@ -1863,20 +2665,10 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "file",
-                  "type": "file",
-                  "src": "",
-                  "description": "Image file (jpg/jpeg/png/webp, max 10MB)"
-                }
-              ]
-            },
             "url": {
               "raw": "{{base_url}}/admin/users/:userId/photos",
               "host": [
@@ -1891,10 +2683,22 @@
               "variable": [
                 {
                   "key": "userId",
-                  "value": "USER_ID"
+                  "value": "",
+                  "description": "Firebase UID"
                 }
               ]
-            }
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "photos",
+                  "src": [],
+                  "type": "file"
+                }
+              ]
+            },
+            "description": "Admin uploads photos for a user."
           }
         },
         {
@@ -1904,17 +2708,15 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"orderedIds\": [\"photo-uuid-1\", \"photo-uuid-2\", \"photo-uuid-3\"]\n}"
-            },
             "url": {
               "raw": "{{base_url}}/admin/users/:userId/photos/reorder",
               "host": [
@@ -1930,11 +2732,21 @@
               "variable": [
                 {
                   "key": "userId",
-                  "value": "USER_ID"
+                  "value": "",
+                  "description": "Firebase UID"
                 }
               ]
             },
-            "description": "Pass all photo IDs in desired order. Position 1 becomes new avatar_url."
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": [\n    {\n      \"id\": \"photo-uuid\",\n      \"position\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Admin reorders photos for a user."
           }
         },
         {
@@ -1944,7 +2756,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1962,24 +2775,28 @@
               "variable": [
                 {
                   "key": "userId",
-                  "value": "USER_ID"
+                  "value": "",
+                  "description": "Firebase UID"
                 },
                 {
                   "key": "photoId",
-                  "value": "PHOTO_UUID"
+                  "value": "",
+                  "description": "UUID of photo"
                 }
               ]
-            }
+            },
+            "description": "Admin deletes a specific photo."
           }
         },
         {
-          "name": "Delete User (Permanent)",
+          "name": "Delete User (Admin)",
           "request": {
             "method": "DELETE",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -1995,16 +2812,18 @@
               "variable": [
                 {
                   "key": "userId",
-                  "value": "USER_ID"
+                  "value": "",
+                  "description": "Firebase UID"
                 }
               ]
-            }
+            },
+            "description": "Permanently delete a user and all their data."
           }
         }
       ]
     },
     {
-      "name": "Admin \u2014 Moderation",
+      "name": "Admin — Moderation",
       "item": [
         {
           "name": "List Reports",
@@ -2013,7 +2832,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -2033,21 +2853,19 @@
                   "description": "pending | resolved | dismissed"
                 },
                 {
-                  "key": "type",
-                  "value": "",
-                  "disabled": true,
-                  "description": "user | message"
-                },
-                {
                   "key": "page",
-                  "value": "1"
+                  "value": "1",
+                  "description": ""
                 },
                 {
                   "key": "limit",
-                  "value": "20"
+                  "value": "20",
+                  "description": ""
                 }
-              ]
-            }
+              ],
+              "variable": []
+            },
+            "description": "List user reports."
           }
         },
         {
@@ -2057,7 +2875,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -2071,13 +2890,16 @@
                 "reports",
                 ":reportId"
               ],
+              "query": [],
               "variable": [
                 {
                   "key": "reportId",
-                  "value": "REPORT_ID"
+                  "value": "",
+                  "description": "UUID of the report"
                 }
               ]
-            }
+            },
+            "description": "Full detail of a report."
           }
         },
         {
@@ -2087,17 +2909,15 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"action\": \"ban\",\n  \"notes\": \"User repeatedly violated guidelines.\"\n}"
-            },
             "url": {
               "raw": "{{base_url}}/admin/moderation/reports/:reportId/resolve",
               "host": [
@@ -2113,11 +2933,21 @@
               "variable": [
                 {
                   "key": "reportId",
-                  "value": "REPORT_ID"
+                  "value": "",
+                  "description": "UUID of the report"
                 }
               ]
             },
-            "description": "action: warn | ban | delete_content | none"
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"warned\",\n  \"note\": \"User was warned\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Mark a report as resolved with an action taken."
           }
         },
         {
@@ -2127,7 +2957,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -2145,10 +2976,13 @@
               "variable": [
                 {
                   "key": "reportId",
-                  "value": "REPORT_ID"
+                  "value": "",
+                  "description": "UUID of the report"
                 }
               ]
-            }
+            },
+            "body": null,
+            "description": "Dismiss a report (no action taken)."
           }
         },
         {
@@ -2158,7 +2992,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -2174,20 +3009,24 @@
               "query": [
                 {
                   "key": "page",
-                  "value": "1"
+                  "value": "1",
+                  "description": ""
                 },
                 {
                   "key": "limit",
-                  "value": "20"
+                  "value": "20",
+                  "description": ""
                 }
-              ]
-            }
+              ],
+              "variable": []
+            },
+            "description": "List messages that have been flagged for review."
           }
         }
       ]
     },
     {
-      "name": "Admin \u2014 Analytics",
+      "name": "Admin — Analytics",
       "item": [
         {
           "name": "Overview",
@@ -2196,7 +3035,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -2208,18 +3048,22 @@
                 "admin",
                 "analytics",
                 "overview"
-              ]
-            }
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "KPI summary: total users, active today, new today, total matches, events."
           }
         },
         {
-          "name": "Daily Active Users (DAU)",
+          "name": "Daily Active Users",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -2235,20 +3079,24 @@
               "query": [
                 {
                   "key": "days",
-                  "value": "30"
+                  "value": "30",
+                  "description": "Number of days (default 30)"
                 }
-              ]
-            }
+              ],
+              "variable": []
+            },
+            "description": "DAU time series for chart."
           }
         },
         {
-          "name": "Monthly Active Users (MAU)",
+          "name": "Monthly Active Users",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -2264,20 +3112,24 @@
               "query": [
                 {
                   "key": "months",
-                  "value": "6"
+                  "value": "6",
+                  "description": "Number of months (default 6)"
                 }
-              ]
-            }
+              ],
+              "variable": []
+            },
+            "description": "MAU time series for chart."
           }
         },
         {
-          "name": "Retention (D1 / D7 / D30)",
+          "name": "Retention",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -2289,18 +3141,22 @@
                 "admin",
                 "analytics",
                 "retention"
-              ]
-            }
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Day 1 / Day 7 / Day 30 retention rates."
           }
         },
         {
-          "name": "User Growth",
+          "name": "Growth",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -2316,20 +3172,24 @@
               "query": [
                 {
                   "key": "days",
-                  "value": "30"
+                  "value": "30",
+                  "description": ""
                 }
-              ]
-            }
+              ],
+              "variable": []
+            },
+            "description": "New user sign-ups per day."
           }
         },
         {
-          "name": "Match Stats",
+          "name": "Matches",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -2345,25 +3205,29 @@
               "query": [
                 {
                   "key": "days",
-                  "value": "30"
+                  "value": "30",
+                  "description": ""
                 }
-              ]
-            }
+              ],
+              "variable": []
+            },
+            "description": "New matches created per day."
           }
         }
       ]
     },
     {
-      "name": "Admin \u2014 Events",
+      "name": "Admin — Events",
       "item": [
         {
-          "name": "List Events",
+          "name": "List Events (Admin)",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -2377,30 +3241,72 @@
               ],
               "query": [
                 {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                },
-                {
                   "key": "status",
                   "value": "upcoming",
                   "description": "upcoming | past | all"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": ""
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": ""
                 }
-              ]
-            }
+              ],
+              "variable": []
+            },
+            "description": "Admin: list all community events."
           }
         },
         {
-          "name": "Get Event Detail",
+          "name": "Upload Event Cover",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/events/upload-cover",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "events",
+                "upload-cover"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "src": [],
+                  "type": "file",
+                  "description": "JPG/PNG/WEBP/GIF — max 10 MB"
+                }
+              ]
+            },
+            "description": "Upload cover image for an event. Returns { url }.\nCall this first, then use the url in Create/Update Event body."
+          }
+        },
+        {
+          "name": "Get Event Detail (Admin)",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -2413,33 +3319,34 @@
                 "events",
                 ":eventId"
               ],
+              "query": [],
               "variable": [
                 {
                   "key": "eventId",
-                  "value": "EVENT_ID"
+                  "value": "",
+                  "description": "UUID of event"
                 }
               ]
-            }
+            },
+            "description": "Full event detail."
           }
         },
         {
-          "name": "Create Event",
+          "name": "Create Event (Admin)",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"Morning Yoga Session\",\n  \"description\": \"Join us for a relaxing morning yoga session in the park.\",\n  \"start_date\": \"2026-05-01T07:00:00.000Z\",\n  \"end_date\": \"2026-05-01T09:00:00.000Z\",\n  \"location\": \"Mumbai\",\n  \"cover_image_url\": \"https://example.com/yoga.jpg\"\n}"
-            },
             "url": {
               "raw": "{{base_url}}/admin/events",
               "host": [
@@ -2448,29 +3355,37 @@
               "path": [
                 "admin",
                 "events"
-              ]
+              ],
+              "variable": []
             },
-            "description": "Required: title, start_date, end_date"
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"FitConnect Community Run\",\n  \"description\": \"5 km fun run at Lodhi Garden\",\n  \"start_date\": \"2026-06-15T07:00:00Z\",\n  \"end_date\": \"2026-06-15T09:00:00Z\",\n  \"location\": \"Lodhi Garden, New Delhi\",\n  \"cover_image_url\": \"https://...\",\n  \"type\": \"run\",\n  \"is_free\": true,\n  \"price\": 0,\n  \"latitude\": 28.5936,\n  \"longitude\": 77.2202,\n  \"tags\": [\n    \"running\",\n    \"outdoor\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Create a new public community event."
           }
         },
         {
-          "name": "Update Event",
+          "name": "Update Event (Admin)",
           "request": {
             "method": "PATCH",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"Updated Event Title\",\n  \"location\": \"Delhi\"\n}"
-            },
             "url": {
               "raw": "{{base_url}}/admin/events/:eventId",
               "host": [
@@ -2484,20 +3399,32 @@
               "variable": [
                 {
                   "key": "eventId",
-                  "value": "EVENT_ID"
+                  "value": "",
+                  "description": "UUID of event"
                 }
               ]
-            }
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Title\",\n  \"location\": \"New Location\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Update any event fields."
           }
         },
         {
-          "name": "Delete Event",
+          "name": "Delete Event (Admin)",
           "request": {
             "method": "DELETE",
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -2513,16 +3440,18 @@
               "variable": [
                 {
                   "key": "eventId",
-                  "value": "EVENT_ID"
+                  "value": "",
+                  "description": "UUID of event"
                 }
               ]
-            }
+            },
+            "description": "Permanently delete an event."
           }
         }
       ]
     },
     {
-      "name": "Admin \u2014 Broadcast",
+      "name": "Admin — Broadcast",
       "item": [
         {
           "name": "Send Broadcast Notification",
@@ -2531,17 +3460,15 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json",
+                "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"New Feature Alert!\",\n  \"body\": \"Check out the new events feature on FitConnect.\",\n  \"filters\": {\n    \"user_type\": \"individual\",\n    \"fitness_level\": \"beginner\",\n    \"platform\": \"android\"\n  },\n  \"data\": {\n    \"screen\": \"events\"\n  }\n}"
-            },
             "url": {
               "raw": "{{base_url}}/admin/notifications/broadcast",
               "host": [
@@ -2551,40 +3478,19 @@
                 "admin",
                 "notifications",
                 "broadcast"
-              ]
+              ],
+              "variable": []
             },
-            "description": "Omit 'filters' to send to all users. filters: user_type (individual|professional), fitness_level (beginner|intermediate|advanced), fitness_goal, platform (android|ios)"
-          }
-        },
-        {
-          "name": "Broadcast to All Users",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Announcement\",\n  \"body\": \"We have an exciting update for all FitConnect users!\"\n}"
+              "raw": "{\n  \"title\": \"New Feature Alert!\",\n  \"body\": \"Check out the new Groups feature in the Social tab!\",\n  \"target\": \"all\",\n  \"data\": {\n    \"screen\": \"Social\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/notifications/broadcast",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "notifications",
-                "broadcast"
-              ]
-            }
+            "description": "Send a push notification to all users or a segment.\ntarget: all | individual | professional"
           }
         },
         {
@@ -2594,7 +3500,8 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
               }
             ],
             "url": {
@@ -2611,14 +3518,18 @@
               "query": [
                 {
                   "key": "page",
-                  "value": "1"
+                  "value": "1",
+                  "description": ""
                 },
                 {
                   "key": "limit",
-                  "value": "20"
+                  "value": "20",
+                  "description": ""
                 }
-              ]
-            }
+              ],
+              "variable": []
+            },
+            "description": "List all previously sent broadcast notifications."
           }
         }
       ]

@@ -87,6 +87,18 @@ async function updateProfile(userId, updates) {
   return data;
 }
 
+// ── Storage bucket bootstrap ──────────────────────────────────────────────────
+// Ensures required buckets exist on first use. createBucket is idempotent —
+// the error is suppressed when the bucket already exists.
+
+async function ensureBucket(name, opts = {}) {
+  await supabaseAdmin.storage.createBucket(name, {
+    public          : true,
+    fileSizeLimit   : opts.fileSizeLimit   ?? 10 * 1024 * 1024,
+    allowedMimeTypes: opts.allowedMimeTypes ?? undefined,
+  }).catch(() => {}); // bucket already exists → ignore
+}
+
 // ── Photo Management ──────────────────────────────────────────────────────────
 
 const MAX_PHOTOS = 6;
@@ -138,6 +150,8 @@ async function uploadPhoto(userId, file) {
 
   // Fixed path per position — upsert overwrites instead of creating duplicates
   const path = `photos/${userId}/${position}.${ext}`;
+
+  await ensureBucket('profile-photos', { allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/heic'] });
 
   const { error: uploadError } = await supabaseAdmin.storage
     .from('profile-photos')
@@ -343,6 +357,127 @@ async function replacePhotos(userId, files) {
   return { photos: results.map(r => r.photo) };
 }
 
+// ── Professional Certifications ───────────────────────────────────────────────
+
+const CERT_TYPES = ['NSCA-CSCS', 'ACE', 'NASM-CPT', 'RYT-200', 'Precision Nutrition', 'Other'];
+const CERT_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+const CERT_MIME_MAP  = {
+  'image/jpeg'      : 'jpg',
+  'image/jpg'       : 'jpg',
+  'image/png'       : 'png',
+  'application/pdf' : 'pdf',
+};
+
+async function addCertification(userId, fields, file) {
+  const { cert_type, custom_type, issue_date, expiry_date, issuing_org } = fields;
+
+  if (!cert_type) {
+    throw Object.assign(new Error('cert_type is required'), { statusCode: 400 });
+  }
+  if (!CERT_TYPES.includes(cert_type)) {
+    throw Object.assign(new Error(`cert_type must be one of: ${CERT_TYPES.join(', ')}`), { statusCode: 400 });
+  }
+  if (cert_type === 'Other' && !custom_type?.trim()) {
+    throw Object.assign(new Error('custom_type is required when cert_type is Other'), { statusCode: 400 });
+  }
+
+  // ── 1. Create DB record first to get the auto-generated UUID ──────────────
+  const { data: cert, error: insertErr } = await supabaseAdmin
+    .from('professional_certifications')
+    .insert({
+      user_id     : userId,
+      cert_type,
+      custom_type : cert_type === 'Other' ? (custom_type?.trim() || null) : null,
+      issue_date  : issue_date  || null,
+      expiry_date : expiry_date || null,
+      issuing_org : issuing_org || null,
+      document_url: null,
+    })
+    .select()
+    .single();
+
+  if (insertErr) throw new Error(insertErr.message);
+
+  // ── 2. Upload document if provided ────────────────────────────────────────
+  if (file?.buffer?.length) {
+    const ext = CERT_MIME_MAP[file.mimetype];
+    if (!ext) {
+      // Clean up the orphan row before throwing
+      await supabaseAdmin.from('professional_certifications').delete().eq('id', cert.id);
+      throw Object.assign(new Error('Document must be a PDF, JPG, or PNG'), { statusCode: 400 });
+    }
+    if (file.buffer.length > CERT_MAX_BYTES) {
+      await supabaseAdmin.from('professional_certifications').delete().eq('id', cert.id);
+      throw Object.assign(new Error('Document must be under 10 MB'), { statusCode: 400 });
+    }
+
+    const storagePath = `certifications/${userId}/${cert.id}.${ext}`;
+
+    await ensureBucket('certifications', { allowedMimeTypes: ['image/jpeg', 'image/png', 'application/pdf'] });
+
+    const { error: uploadErr } = await supabaseAdmin.storage
+      .from('certifications')
+      .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false });
+
+    if (uploadErr) {
+      await supabaseAdmin.from('professional_certifications').delete().eq('id', cert.id);
+      throw new Error(uploadErr.message);
+    }
+
+    const { data: urlData } = supabaseAdmin.storage
+      .from('certifications')
+      .getPublicUrl(storagePath);
+
+    const { data: updated, error: updateErr } = await supabaseAdmin
+      .from('professional_certifications')
+      .update({ document_url: urlData.publicUrl, updated_at: new Date().toISOString() })
+      .eq('id', cert.id)
+      .select()
+      .single();
+
+    if (updateErr) throw new Error(updateErr.message);
+    return updated;
+  }
+
+  return cert;
+}
+
+async function getCertifications(userId) {
+  const { data, error } = await supabaseAdmin
+    .from('professional_certifications')
+    .select('id, cert_type, custom_type, document_url, issue_date, expiry_date, issuing_org, is_verified, verified_at, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return { certifications: data || [] };
+}
+
+async function deleteCertification(userId, certId) {
+  const { data: cert, error: fetchErr } = await supabaseAdmin
+    .from('professional_certifications')
+    .select('id, document_url')
+    .eq('id', certId)
+    .eq('user_id', userId)
+    .single();
+
+  if (fetchErr || !cert) {
+    throw Object.assign(new Error('Certification not found'), { statusCode: 404 });
+  }
+
+  // Remove document from storage if one exists
+  if (cert.document_url) {
+    // Extract the path after the bucket name
+    const storagePath = cert.document_url.split('/certifications/')[1];
+    if (storagePath) {
+      await supabaseAdmin.storage.from('certifications').remove([storagePath]);
+    }
+  }
+
+  await supabaseAdmin.from('professional_certifications').delete().eq('id', certId);
+  return { message: 'Certification deleted' };
+}
+
 async function updateDeviceToken(userId, { token, platform }) {
   const { error } = await supabaseAdmin
     .from('device_tokens')
@@ -352,4 +487,9 @@ async function updateDeviceToken(userId, { token, platform }) {
   return { message: 'Device token updated' };
 }
 
-module.exports = { getProfile, onboardIndividual, onboardProfessional, updateProfile, getPhotos, uploadPhoto, replacePhoto, replacePhotos, deletePhoto, reorderPhotos, updateDeviceToken };
+module.exports = {
+  getProfile, onboardIndividual, onboardProfessional, updateProfile,
+  getPhotos, uploadPhoto, replacePhoto, replacePhotos, deletePhoto, reorderPhotos,
+  addCertification, getCertifications, deleteCertification,
+  updateDeviceToken,
+};
