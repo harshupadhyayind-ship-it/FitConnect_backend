@@ -125,55 +125,91 @@ async function getProfessionalsNearYou(userId, filters = {}) {
 // ─── Groups ───────────────────────────────────────────────────────────────────
 
 async function getMyGroups(userId) {
-  // Get all groups the user is a member of
-  const { data: memberships, error } = await supabaseAdmin
-    .from('group_members')
-    .select(`
-      role, joined_at,
-      group:group_id (
-        id, name, description, cover_image_url, category,
-        creator_id, is_private, member_count, created_at
-      )
-    `)
-    .eq('user_id', userId)
-    .order('joined_at', { ascending: false });
+  const [
+    { data: userProfile },
+    { data: memberships, error },
+  ] = await Promise.all([
+    supabaseAdmin.from('profiles').select('latitude, longitude').eq('id', userId).single(),
+    supabaseAdmin
+      .from('group_members')
+      .select(`
+        role, joined_at,
+        group:group_id (
+          id, name, description, cover_image_url, category,
+          creator_id, is_private, member_count,
+          location, latitude, longitude, created_at
+        )
+      `)
+      .eq('user_id', userId)
+      .order('joined_at', { ascending: false }),
+  ]);
 
   if (error) throw new Error(error.message);
 
-  const groups = (memberships || []).map(m => ({
-    ...m.group,
-    role     : m.role,
-    joined_at: m.joined_at,
-  }));
+  const groupIds = (memberships || []).map(m => m.group?.id).filter(Boolean);
+
+  // Fetch next upcoming event for each group in one query
+  const nextEventMap = {};
+  if (groupIds.length > 0) {
+    const { data: events } = await supabaseAdmin
+      .from('group_events')
+      .select('group_id, id, title, start_date, location, going_count')
+      .in('group_id', groupIds)
+      .gte('start_date', new Date().toISOString())
+      .order('start_date', { ascending: true });
+
+    for (const ev of (events || [])) {
+      if (!nextEventMap[ev.group_id]) nextEventMap[ev.group_id] = ev;
+    }
+  }
+
+  const uLat = userProfile?.latitude;
+  const uLon = userProfile?.longitude;
+
+  const groups = (memberships || []).map(m => {
+    const g = m.group;
+    const distance_km = (uLat && uLon && g.latitude && g.longitude)
+      ? Math.round(haversineKm(uLat, uLon, g.latitude, g.longitude) * 10) / 10
+      : null;
+
+    return {
+      ...g,
+      role       : m.role,
+      joined_at  : m.joined_at,
+      distance_km,
+      next_event : nextEventMap[g.id] || null,
+    };
+  });
 
   return { groups, total: groups.length };
 }
 
 async function createGroup(userId, body) {
-  const { name, description, category, is_private, cover_image_url } = body;
+  const { name, description, category, is_private, cover_image_url, location, latitude, longitude } = body;
 
   if (!name?.trim()) {
     throw Object.assign(new Error('name is required'), { statusCode: 400 });
   }
 
-  // Create the group
   const { data: group, error } = await supabaseAdmin
     .from('groups')
     .insert({
-      name        : name.trim(),
-      description : description || null,
-      category    : category    || 'general',
-      is_private  : is_private  ?? false,
+      name           : name.trim(),
+      description    : description    || null,
+      category       : category       || 'general',
+      is_private     : is_private     ?? false,
       cover_image_url: cover_image_url || null,
-      creator_id  : userId,
-      member_count: 1,
+      location       : location       || null,
+      latitude       : latitude       ?? null,
+      longitude      : longitude      ?? null,
+      creator_id     : userId,
+      member_count   : 1,
     })
     .select()
     .single();
 
   if (error) throw new Error(error.message);
 
-  // Auto-add creator as admin
   await supabaseAdmin
     .from('group_members')
     .insert({ group_id: group.id, user_id: userId, role: 'admin' });
@@ -182,41 +218,72 @@ async function createGroup(userId, body) {
 }
 
 async function getGroupDetail(userId, groupId) {
-  const { data: group, error } = await supabaseAdmin
-    .from('groups')
-    .select('id, name, description, cover_image_url, category, creator_id, is_private, member_count, created_at')
-    .eq('id', groupId)
-    .single();
+  const [
+    { data: userProfile },
+    { data: group, error },
+    { data: membership },
+    { data: members },
+    { data: upcomingEvents },
+  ] = await Promise.all([
+    supabaseAdmin.from('profiles').select('latitude, longitude').eq('id', userId).single(),
+
+    supabaseAdmin
+      .from('groups')
+      .select('id, name, description, cover_image_url, category, creator_id, is_private, member_count, location, latitude, longitude, created_at')
+      .eq('id', groupId)
+      .single(),
+
+    supabaseAdmin
+      .from('group_members')
+      .select('role, joined_at')
+      .eq('group_id', groupId)
+      .eq('user_id', userId)
+      .single(),
+
+    // First 8 members (admin first, then by join date)
+    supabaseAdmin
+      .from('group_members')
+      .select('role, joined_at, user:user_id (id, name, avatar_url)')
+      .eq('group_id', groupId)
+      .order('role',      { ascending: true })  // 'admin' < 'member' alphabetically
+      .order('joined_at', { ascending: true })
+      .limit(8),
+
+    // Next 5 upcoming events
+    supabaseAdmin
+      .from('group_events')
+      .select('id, title, description, start_date, end_date, location, going_count, cover_image_url, is_free, price')
+      .eq('group_id', groupId)
+      .gte('start_date', new Date().toISOString())
+      .order('start_date', { ascending: true })
+      .limit(5),
+  ]);
 
   if (error || !group) {
     throw Object.assign(new Error('Group not found'), { statusCode: 404 });
   }
 
-  // Get requesting user's membership
-  const { data: membership } = await supabaseAdmin
-    .from('group_members')
-    .select('role, joined_at')
-    .eq('group_id', groupId)
-    .eq('user_id', userId)
-    .single();
+  const uLat = userProfile?.latitude;
+  const uLon = userProfile?.longitude;
+  const distance_km = (uLat && uLon && group.latitude && group.longitude)
+    ? Math.round(haversineKm(uLat, uLon, group.latitude, group.longitude) * 10) / 10
+    : null;
 
-  // Get members preview (up to 10)
-  const { data: members } = await supabaseAdmin
-    .from('group_members')
-    .select(`
-      role, joined_at,
-      user:user_id (id, name, avatar_url, user_type)
-    `)
-    .eq('group_id', groupId)
-    .order('joined_at', { ascending: true })
-    .limit(10);
+  const membersList = (members || []).map(m => ({
+    ...m.user,
+    role     : m.role,
+    is_admin : m.role === 'admin',
+    joined_at: m.joined_at,
+  }));
 
   return {
     ...group,
-    is_member: !!membership,
-    role     : membership?.role || null,
-    joined_at: membership?.joined_at || null,
-    members  : (members || []).map(m => ({ ...m.user, role: m.role })),
+    distance_km,
+    is_member       : !!membership,
+    role            : membership?.role || null,
+    joined_at       : membership?.joined_at || null,
+    members_preview : membersList,
+    upcoming_events : upcomingEvents || [],
   };
 }
 
@@ -510,9 +577,59 @@ async function toggleGroupEventAttendance(userId, groupId, eventId) {
   }
 }
 
+async function searchGroups(userId, { q, category, page, limit }) {
+  let query = supabaseAdmin
+    .from('groups')
+    .select('id, name, description, cover_image_url, category, is_private, member_count, location, latitude, longitude, created_at, creator_id', { count: 'exact' })
+    .eq('is_private', false);
+
+  if (q?.trim()) {
+    query = query.ilike('name', `%${q.trim()}%`);
+  }
+
+  if (category) {
+    query = query.eq('category', category);
+  }
+
+  const offset = (page - 1) * limit;
+  const [
+    { data: groups, error, count },
+    { data: userProfile },
+  ] = await Promise.all([
+    query.order('member_count', { ascending: false }).range(offset, offset + limit - 1),
+    supabaseAdmin.from('profiles').select('latitude, longitude').eq('id', userId).single(),
+  ]);
+
+  if (error) throw new Error(error.message);
+
+  const { data: memberships } = await supabaseAdmin
+    .from('group_members')
+    .select('group_id')
+    .eq('user_id', userId)
+    .in('group_id', (groups || []).map(g => g.id));
+
+  const joinedSet = new Set((memberships || []).map(m => m.group_id));
+  const uLat = userProfile?.latitude;
+  const uLon = userProfile?.longitude;
+
+  return {
+    groups: (groups || []).map(g => ({
+      ...g,
+      is_member  : joinedSet.has(g.id),
+      distance_km: (uLat && uLon && g.latitude && g.longitude)
+        ? Math.round(haversineKm(uLat, uLon, g.latitude, g.longitude) * 10) / 10
+        : null,
+    })),
+    total: count,
+    page,
+    limit,
+  };
+}
+
 module.exports = {
   getProfessionalsNearYou,
   getMyGroups,
+  searchGroups,
   createGroup,
   getGroupDetail,
   joinGroup,

@@ -1626,6 +1626,54 @@
             "body": null,
             "description": "Mark all unread messages in a conversation as read."
           }
+        },
+        {
+          "name": "Send File / Image",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/messages/:matchId/upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "messages",
+                ":matchId",
+                "upload"
+              ],
+              "variable": [
+                {
+                  "key": "matchId",
+                  "value": "",
+                  "description": "UUID of the match"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "description": "Image (jpg/png/gif/webp/heic) or document (pdf/doc/docx/xls/xlsx/txt). Max 25 MB."
+                },
+                {
+                  "key": "caption",
+                  "type": "text",
+                  "value": "",
+                  "description": "Optional text caption to accompany the file."
+                }
+              ]
+            },
+            "description": "Send an image or document in a conversation.\n\nAccepted images: jpg, png, gif, webp, heic\nAccepted files: pdf, doc, docx, xls, xlsx, txt\nMax size: 25 MB\n\nResponse includes message_type ('image'|'file'), file_url (public CDN URL), file_name, file_size, mime_type."
+          }
         }
       ]
     },
@@ -1931,7 +1979,39 @@
               "query": [],
               "variable": []
             },
-            "description": "Social screen → Groups tab.\nReturns all groups the user is a member of.\nEach group: id, name, description, cover_image_url, category, member_count, is_private, role (admin|member), joined_at"
+            "description": "Social screen → My Groups tab.\nReturns all groups the user is a member of.\n\nEach group includes:\n- id, name, description, cover_image_url, category\n- member_count, is_private, location, latitude, longitude\n- role: 'admin' | 'member'\n- joined_at\n- distance_km: distance from user's saved location (null if no location set)\n- next_event: { id, title, start_date, location, going_count } or null"
+          }
+        },
+        {
+          "name": "Search Groups",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/social/groups/search?q=yoga&category=yoga&page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "social",
+                "groups",
+                "search"
+              ],
+              "query": [
+                { "key": "q",        "value": "yoga",    "description": "Search term (matches group name, case-insensitive)" },
+                { "key": "category", "value": "yoga",    "description": "Filter by category: running | yoga | gym | badminton | cycling | swimming | cricket | football | basketball | meditation | general" },
+                { "key": "page",     "value": "1",       "description": "Page number" },
+                { "key": "limit",    "value": "20",      "description": "Results per page (max 50)" }
+              ],
+              "variable": []
+            },
+            "description": "Find Groups tab — search public groups by name with optional category filter.\n\nEach result includes:\n- id, name, description, cover_image_url, category, member_count, location\n- is_member: true/false — use to show Join vs ✓ Joined button\n- distance_km: from user's saved location (null if no location set)\n\nResults ordered by member_count descending."
           }
         },
         {
@@ -1963,14 +2043,14 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Morning Runners Delhi\",\n  \"description\": \"Daily 6 AM runs around Lodhi Garden\",\n  \"category\": \"running\",\n  \"is_private\": false,\n  \"cover_image_url\": \"\"\n}",
+              "raw": "{\n  \"name\": \"Morning Runners Delhi\",\n  \"description\": \"Daily 6 AM runs around Lodhi Garden\",\n  \"category\": \"running\",\n  \"is_private\": false,\n  \"cover_image_url\": \"\",\n  \"location\": \"Lodhi Gardens, New Delhi\",\n  \"latitude\": 28.5933,\n  \"longitude\": 77.2207\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "description": "Create a new group. Creator is automatically added as admin.\ncategory: running | yoga | gym | cycling | sports | nutrition | general\nReturns group + role: \"admin\""
+            "description": "Create a new group. Creator is automatically added as admin.\ncategory: running | yoga | gym | badminton | cycling | swimming | cricket | football | basketball | meditation | general\nlocation: human-readable place name (e.g. 'Lodhi Gardens, New Delhi')\nReturns group + role: \"admin\""
           }
         },
         {
@@ -2003,7 +2083,7 @@
                 }
               ]
             },
-            "description": "Full group details including first 10 members preview.\nIncludes is_member, role, joined_at for the requesting user."
+            "description": "Full group detail screen.\n\nResponse includes:\n- Group: id, name, description, cover_image_url, category, member_count, is_private, location, latitude, longitude, distance_km\n- Membership: is_member, role ('admin'|'member'|null), joined_at\n- members_preview: first 8 members [ { id, name, avatar_url, role, is_admin, joined_at } ] — admin shown first\n- upcoming_events: next 5 events [ { id, title, start_date, end_date, location, going_count, is_free, price } ]"
           }
         },
         {

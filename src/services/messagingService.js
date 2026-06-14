@@ -6,6 +6,48 @@ const { supabaseAdmin } = require('../config/supabase');
  * to receive messages in real-time — no extra setup required on this side.
  */
 
+// ── File upload helpers ───────────────────────────────────────────────────────
+
+const CHAT_BUCKET = 'chat-files';
+const CHAT_MAX_BYTES = 25 * 1024 * 1024; // 25 MB
+
+const IMAGE_MIMES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic']);
+const FILE_MIMES  = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain',
+]);
+
+function messageTypeFromMime(mime) {
+  if (IMAGE_MIMES.has(mime)) return 'image';
+  if (FILE_MIMES.has(mime))  return 'file';
+  return null; // unsupported
+}
+
+function extFromMime(mime) {
+  const map = {
+    'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png',
+    'image/gif': 'gif', 'image/webp': 'webp', 'image/heic': 'heic',
+    'application/pdf': 'pdf',
+    'application/msword': 'doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    'application/vnd.ms-excel': 'xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+    'text/plain': 'txt',
+  };
+  return map[mime] || 'bin';
+}
+
+async function ensureChatBucket() {
+  await supabaseAdmin.storage.createBucket(CHAT_BUCKET, {
+    public        : true,
+    fileSizeLimit : CHAT_MAX_BYTES,
+  }).catch(() => {}); // already exists → ignore
+}
+
 async function getChatList(userId) {
   // Fetch all matches + messages + unread counts in parallel
   const [
@@ -27,7 +69,7 @@ async function getChatList(userId) {
     // Latest message per match
     supabaseAdmin
       .from('messages')
-      .select('match_id, content, created_at, sender_id, is_read')
+      .select('match_id, content, message_type, file_name, created_at, sender_id, is_read')
       .or(`sender_id.eq.${userId},recipient_id.eq.${userId}`)
       .order('created_at', { ascending: false }),
 
@@ -88,7 +130,11 @@ async function getChatList(userId) {
         other_user   : otherUser,
         client_label,
         last_message : {
-          content    : lastMsg.content,
+          content    : lastMsg.message_type === 'image'
+            ? '📷 Photo'
+            : lastMsg.message_type === 'file'
+              ? `📎 ${lastMsg.file_name || 'Document'}`
+              : lastMsg.content,
           created_at : lastMsg.created_at,
           is_mine    : lastMsg.sender_id === userId,
         },
@@ -126,7 +172,7 @@ async function getMessages(userId, matchId, page, limit) {
   const offset = (page - 1) * limit;
   const { data, error, count } = await supabaseAdmin
     .from('messages')
-    .select('id, sender_id, content, is_read, created_at', { count: 'exact' })
+    .select('id, sender_id, content, message_type, file_url, file_name, file_size, mime_type, is_read, created_at', { count: 'exact' })
     .eq('match_id', matchId)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
@@ -136,8 +182,11 @@ async function getMessages(userId, matchId, page, limit) {
   return { messages: (data || []).reverse(), total: count, page, limit };
 }
 
-async function sendMessage(senderId, matchId, content) {
-  // Verify sender is part of this match
+async function sendMessage(senderId, matchId, body) {
+  const { content, file_url, file_name, file_size, mime_type } = typeof body === 'string'
+    ? { content: body }
+    : body;
+
   const { data: match } = await supabaseAdmin
     .from('matches')
     .select('user1_id, user2_id')
@@ -150,9 +199,84 @@ async function sendMessage(senderId, matchId, content) {
 
   const recipient_id = match.user1_id === senderId ? match.user2_id : match.user1_id;
 
+  const message_type = file_url
+    ? (mime_type && IMAGE_MIMES.has(mime_type) ? 'image' : 'file')
+    : 'text';
+
   const { data, error } = await supabaseAdmin
     .from('messages')
-    .insert({ match_id: matchId, sender_id: senderId, recipient_id, content, is_read: false })
+    .insert({
+      match_id: matchId,
+      sender_id: senderId,
+      recipient_id,
+      content: content || null,
+      message_type,
+      file_url:   file_url   || null,
+      file_name:  file_name  || null,
+      file_size:  file_size  || null,
+      mime_type:  mime_type  || null,
+      is_read: false,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function sendFileMessage(senderId, matchId, file, caption) {
+  // Validate match membership
+  const { data: match } = await supabaseAdmin
+    .from('matches')
+    .select('user1_id, user2_id')
+    .eq('id', matchId)
+    .single();
+
+  if (!match || (match.user1_id !== senderId && match.user2_id !== senderId)) {
+    throw Object.assign(new Error('Forbidden — not a match'), { status: 403 });
+  }
+
+  const mime = file.mimetype;
+  const msgType = messageTypeFromMime(mime);
+  if (!msgType) {
+    throw Object.assign(new Error('Unsupported file type'), { status: 400 });
+  }
+
+  if (file.buffer.length > CHAT_MAX_BYTES) {
+    throw Object.assign(new Error('File exceeds 25 MB limit'), { status: 400 });
+  }
+
+  await ensureChatBucket();
+
+  const ext      = extFromMime(mime);
+  const fileName = `${matchId}/${senderId}-${Date.now()}.${ext}`;
+
+  const { error: upErr } = await supabaseAdmin.storage
+    .from(CHAT_BUCKET)
+    .upload(fileName, file.buffer, { contentType: mime, upsert: false });
+
+  if (upErr) throw new Error(upErr.message);
+
+  const { data: { publicUrl } } = supabaseAdmin.storage
+    .from(CHAT_BUCKET)
+    .getPublicUrl(fileName);
+
+  const recipient_id = match.user1_id === senderId ? match.user2_id : match.user1_id;
+
+  const { data, error } = await supabaseAdmin
+    .from('messages')
+    .insert({
+      match_id     : matchId,
+      sender_id    : senderId,
+      recipient_id,
+      content      : caption || null,
+      message_type : msgType,
+      file_url     : publicUrl,
+      file_name    : file.originalname || file.filename,
+      file_size    : file.buffer.length,
+      mime_type    : mime,
+      is_read      : false,
+    })
     .select()
     .single();
 
@@ -171,4 +295,4 @@ async function markAsRead(userId, matchId) {
   if (error) throw new Error(error.message);
 }
 
-module.exports = { getChatList, getMessages, sendMessage, markAsRead };
+module.exports = { getChatList, getMessages, sendMessage, sendFileMessage, markAsRead };

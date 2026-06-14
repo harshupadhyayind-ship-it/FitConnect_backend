@@ -46,15 +46,33 @@ module.exports = async function socialRoutes(fastify) {
         properties: {
           name           : { type: 'string', minLength: 1, maxLength: 100 },
           description    : { type: 'string', maxLength: 500 },
-          category       : { type: 'string', enum: ['running', 'yoga', 'gym', 'cycling', 'sports', 'nutrition', 'general'] },
+          category       : { type: 'string', enum: ['running', 'yoga', 'gym', 'badminton', 'cycling', 'swimming', 'cricket', 'football', 'basketball', 'meditation', 'general'] },
           is_private     : { type: 'boolean' },
           cover_image_url: { type: 'string' },
+          location       : { type: 'string', maxLength: 200 },
+          latitude       : { type: 'number' },
+          longitude      : { type: 'number' },
         },
       },
     },
   }, async (request, reply) => {
     const group = await socialService.createGroup(request.user.sub, request.body);
     return reply.code(201).send(group);
+  });
+
+  /**
+   * GET /api/v1/social/groups/search
+   * Query: q (name), category, page, limit
+   * Searches public groups by name. Returns is_member flag for each group.
+   */
+  fastify.get('/groups/search', auth, async (request) => {
+    const { q, category, page = 1, limit = 20 } = request.query;
+    return socialService.searchGroups(request.user.sub, {
+      q,
+      category,
+      page : parseInt(page),
+      limit: Math.min(parseInt(limit), 50),
+    });
   });
 
   /**
