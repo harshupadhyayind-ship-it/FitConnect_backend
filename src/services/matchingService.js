@@ -1,5 +1,7 @@
 const { supabaseAdmin } = require('../config/supabase');
 
+const DISLIKE_COOLDOWN_DAYS = 30;
+
 async function likeUser(likerId, likedUserId) {
   if (likerId === likedUserId) throw Object.assign(new Error('Cannot like yourself'), { status: 400 });
 
@@ -71,6 +73,51 @@ async function unlikeUser(likerId, likedUserId) {
 
   if (error) throw new Error(error.message);
   return { unliked: true };
+}
+
+async function dislikeUser(dislikerId, dislikedUserId) {
+  if (dislikerId === dislikedUserId) throw Object.assign(new Error('Cannot dislike yourself'), { status: 400 });
+
+  const { data: targetProfile, error: profileErr } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('id', dislikedUserId)
+    .single();
+
+  if (profileErr || !targetProfile) {
+    throw Object.assign(new Error('User not found'), { status: 404 });
+  }
+
+  const expiresAt = new Date(Date.now() + DISLIKE_COOLDOWN_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+  const { error: dislikeError } = await supabaseAdmin
+    .from('dislikes')
+    .upsert(
+      { disliker_user_id: dislikerId, disliked_user_id: dislikedUserId, created_at: new Date().toISOString(), expires_at: expiresAt },
+      { onConflict: 'disliker_user_id,disliked_user_id' }
+    );
+
+  if (dislikeError) throw new Error(dislikeError.message);
+
+  // A pass overrides any pending like in either direction so it can't turn into a match later
+  await supabaseAdmin
+    .from('likes')
+    .delete()
+    .eq('liker_user_id', dislikerId)
+    .eq('liked_user_id', dislikedUserId);
+
+  return { disliked: true, hidden_until: expiresAt };
+}
+
+async function undoDislike(dislikerId, dislikedUserId) {
+  const { error } = await supabaseAdmin
+    .from('dislikes')
+    .delete()
+    .eq('disliker_user_id', dislikerId)
+    .eq('disliked_user_id', dislikedUserId);
+
+  if (error) throw new Error(error.message);
+  return { undone: true };
 }
 
 async function getMatches(userId, page, limit) {
@@ -155,4 +202,4 @@ async function unmatch(userId, matchId) {
   if (error) throw new Error(error.message);
 }
 
-module.exports = { likeUser, unlikeUser, getMatches, getSentLikes, getReceivedLikes, unmatch };
+module.exports = { likeUser, unlikeUser, dislikeUser, undoDislike, getMatches, getSentLikes, getReceivedLikes, unmatch };

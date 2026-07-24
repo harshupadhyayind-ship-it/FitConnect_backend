@@ -18,6 +18,16 @@ module.exports = async function matchingRoutes(fastify) {
     return matchingService.unlikeUser(request.user.sub, request.params.targetUserId);
   });
 
+  // POST /api/v1/matching/dislike/:targetUserId  — "pass"; hides the user from discovery for a cooldown period
+  fastify.post('/dislike/:targetUserId', auth, async (request) => {
+    return matchingService.dislikeUser(request.user.sub, request.params.targetUserId);
+  });
+
+  // DELETE /api/v1/matching/dislike/:targetUserId  — undo a pass before the cooldown expires
+  fastify.delete('/dislike/:targetUserId', auth, async (request) => {
+    return matchingService.undoDislike(request.user.sub, request.params.targetUserId);
+  });
+
   // GET /api/v1/matching/likes/sent
   fastify.get('/likes/sent', auth, async (request) => {
     return matchingService.getSentLikes(request.user.sub);
