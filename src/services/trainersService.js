@@ -71,4 +71,94 @@ async function getTrainerDetail(trainerId) {
   return data;
 }
 
-module.exports = { getTrainers, getTrainerDetail };
+/**
+ * Recompute the denormalised rating/reviews_count on the trainer's profile
+ * from the professional_ratings table.
+ */
+async function recomputeTrainerRating(trainerId) {
+  const { data: ratings, error } = await supabaseAdmin
+    .from('professional_ratings')
+    .select('rating')
+    .eq('professional_id', trainerId);
+
+  if (error) throw new Error(error.message);
+
+  const count = ratings.length;
+  const avg = count ? ratings.reduce((sum, r) => sum + r.rating, 0) / count : 0;
+
+  await supabaseAdmin
+    .from('profiles')
+    .update({ rating: Math.round(avg * 10) / 10, reviews_count: count })
+    .eq('id', trainerId);
+}
+
+/**
+ * Rate (or update a previous rating of) a professional.
+ * One rating per (professional, rater) pair — rating again edits the review.
+ */
+async function rateTrainer(raterId, trainerId, { rating, review }) {
+  if (raterId === trainerId) throw Object.assign(new Error('Cannot rate yourself'), { status: 400 });
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    throw Object.assign(new Error('rating must be an integer between 1 and 5'), { status: 400 });
+  }
+
+  const { data: trainer } = await supabaseAdmin
+    .from('profiles').select('id, user_type').eq('id', trainerId).single();
+  if (!trainer || trainer.user_type !== 'professional') {
+    throw Object.assign(new Error('Trainer not found'), { status: 404 });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('professional_ratings')
+    .upsert({
+      professional_id: trainerId,
+      rater_user_id:   raterId,
+      rating,
+      review:     review || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'professional_id,rater_user_id' })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  await recomputeTrainerRating(trainerId);
+
+  return data;
+}
+
+/**
+ * Paginated list of ratings/reviews for a trainer.
+ */
+async function getTrainerRatings(trainerId, page, limit) {
+  const offset = (page - 1) * limit;
+
+  const { data, error, count } = await supabaseAdmin
+    .from('professional_ratings')
+    .select('id, rating, review, created_at, rater:rater_user_id(id, name, avatar_url)', { count: 'exact' })
+    .eq('professional_id', trainerId)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) throw new Error(error.message);
+
+  return { ratings: data || [], total: count, page, limit, has_more: offset + limit < count };
+}
+
+/**
+ * Remove the caller's own rating of a trainer.
+ */
+async function deleteTrainerRating(raterId, trainerId) {
+  const { error } = await supabaseAdmin
+    .from('professional_ratings')
+    .delete()
+    .eq('professional_id', trainerId)
+    .eq('rater_user_id', raterId);
+
+  if (error) throw new Error(error.message);
+
+  await recomputeTrainerRating(trainerId);
+  return { deleted: true };
+}
+
+module.exports = { getTrainers, getTrainerDetail, rateTrainer, getTrainerRatings, deleteTrainerRating };

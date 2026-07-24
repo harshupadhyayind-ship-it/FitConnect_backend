@@ -90,4 +90,16 @@ module.exports = async function messageRoutes(fastify) {
     await messagingService.markAsRead(request.user.sub, request.params.matchId);
     return reply.send({ message: 'Messages marked as read' });
   });
+
+  // DELETE /api/v1/messages/:matchId  — delete entire chat (all messages + attachments)
+  fastify.delete('/:matchId', auth, async (request, reply) => {
+    await messagingService.deleteChat(request.user.sub, request.params.matchId);
+    return reply.send({ message: 'Chat deleted' });
+  });
+
+  // DELETE /api/v1/messages/:matchId/:messageId  — delete a single message (+ its attachment)
+  fastify.delete('/:matchId/:messageId', auth, async (request, reply) => {
+    await messagingService.deleteMessage(request.user.sub, request.params.matchId, request.params.messageId);
+    return reply.send({ message: 'Message deleted' });
+  });
 };

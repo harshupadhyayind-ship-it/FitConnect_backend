@@ -284,6 +284,81 @@ async function sendFileMessage(senderId, matchId, file, caption) {
   return data;
 }
 
+/**
+ * Extracts the storage object path from a public Supabase Storage URL,
+ * e.g. ".../object/public/chat-files/<matchId>/<file>" → "<matchId>/<file>".
+ * Returns null if the URL doesn't point at our chat bucket (nothing to clean up).
+ */
+function storagePathFromUrl(fileUrl) {
+  if (!fileUrl) return null;
+  const marker = `/${CHAT_BUCKET}/`;
+  const idx = fileUrl.indexOf(marker);
+  if (idx === -1) return null;
+  return fileUrl.slice(idx + marker.length);
+}
+
+async function deleteMessage(userId, matchId, messageId) {
+  const { data: match } = await supabaseAdmin
+    .from('matches')
+    .select('user1_id, user2_id')
+    .eq('id', matchId)
+    .single();
+
+  if (!match || (match.user1_id !== userId && match.user2_id !== userId)) {
+    throw Object.assign(new Error('Forbidden'), { status: 403 });
+  }
+
+  const { data: message } = await supabaseAdmin
+    .from('messages')
+    .select('id, sender_id, file_url')
+    .eq('id', messageId)
+    .eq('match_id', matchId)
+    .single();
+
+  if (!message) throw Object.assign(new Error('Message not found'), { status: 404 });
+  if (message.sender_id !== userId) {
+    throw Object.assign(new Error('Only the sender can delete this message'), { status: 403 });
+  }
+
+  const path = storagePathFromUrl(message.file_url);
+  if (path) {
+    await supabaseAdmin.storage.from(CHAT_BUCKET).remove([path]).catch(() => {});
+  }
+
+  const { error } = await supabaseAdmin.from('messages').delete().eq('id', messageId);
+  if (error) throw new Error(error.message);
+
+  return { deleted: true };
+}
+
+async function deleteChat(userId, matchId) {
+  const { data: match } = await supabaseAdmin
+    .from('matches')
+    .select('user1_id, user2_id')
+    .eq('id', matchId)
+    .single();
+
+  if (!match || (match.user1_id !== userId && match.user2_id !== userId)) {
+    throw Object.assign(new Error('Forbidden'), { status: 403 });
+  }
+
+  const { data: files } = await supabaseAdmin
+    .from('messages')
+    .select('file_url')
+    .eq('match_id', matchId)
+    .not('file_url', 'is', null);
+
+  const paths = (files || []).map(f => storagePathFromUrl(f.file_url)).filter(Boolean);
+  if (paths.length) {
+    await supabaseAdmin.storage.from(CHAT_BUCKET).remove(paths).catch(() => {});
+  }
+
+  const { error } = await supabaseAdmin.from('messages').delete().eq('match_id', matchId);
+  if (error) throw new Error(error.message);
+
+  return { deleted: true };
+}
+
 async function markAsRead(userId, matchId) {
   const { error } = await supabaseAdmin
     .from('messages')
@@ -295,4 +370,4 @@ async function markAsRead(userId, matchId) {
   if (error) throw new Error(error.message);
 }
 
-module.exports = { getChatList, getMessages, sendMessage, sendFileMessage, markAsRead };
+module.exports = { getChatList, getMessages, sendMessage, sendFileMessage, markAsRead, deleteMessage, deleteChat };
