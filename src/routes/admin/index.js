@@ -4,4 +4,5 @@ module.exports = async function adminRoutes(fastify) {
   fastify.register(require('./analytics'),     { prefix: '/analytics' });
   fastify.register(require('./broadcast'),     { prefix: '/notifications' });
   fastify.register(require('./events'),        { prefix: '/events' });
+  fastify.register(require('./proInterest'),   { prefix: '/pro-interest' });
 };
