@@ -1,5 +1,6 @@
 const { supabaseAdmin } = require('../config/supabase');
 const { computeScore, haversineKm } = require('./scoringService');
+const { getExcludedUserIds } = require('./exclusionService');
 
 /**
  * Returns a paginated, scored list of user profiles for discovery.
@@ -18,17 +19,7 @@ async function discoverUsers(userId, filters) {
   if (!me) throw Object.assign(new Error('Profile not found'), { status: 404 });
 
   // 2. Get IDs to exclude (self + already liked + already matched + actively disliked)
-  const [{ data: likedRows }, { data: matchRows }, { data: dislikedRows }] = await Promise.all([
-    supabaseAdmin.from('likes').select('liked_user_id').eq('liker_user_id', userId),
-    supabaseAdmin.from('matches').select('user1_id, user2_id').or(`user1_id.eq.${userId},user2_id.eq.${userId}`),
-    // Only currently-active passes hide a user — once expires_at passes they resurface automatically
-    supabaseAdmin.from('dislikes').select('disliked_user_id').eq('disliker_user_id', userId).gt('expires_at', new Date().toISOString()),
-  ]);
-
-  const excludeIds = new Set([userId]);
-  likedRows?.forEach(r => excludeIds.add(r.liked_user_id));
-  matchRows?.forEach(r => { excludeIds.add(r.user1_id); excludeIds.add(r.user2_id); });
-  dislikedRows?.forEach(r => excludeIds.add(r.disliked_user_id));
+  const excludeIds = await getExcludedUserIds(userId);
 
   // 3. Build query
   let query = supabaseAdmin

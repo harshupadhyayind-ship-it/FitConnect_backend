@@ -1,5 +1,6 @@
 const { supabaseAdmin } = require('../config/supabase');
 const { computeScore, haversineKm } = require('./scoringService');
+const { getExcludedUserIds } = require('./exclusionService');
 
 const SPORTS_CATEGORIES = [
   { id: 'badminton',    label: 'Badminton',    emoji: '🏸' },
@@ -24,15 +25,8 @@ async function getHomeData(userId) {
 
   if (meErr || !me) throw Object.assign(new Error('Profile not found'), { status: 404 });
 
-  // 2. IDs to exclude for FitBuddies (already liked or matched)
-  const [{ data: likedRows }, { data: matchRows }] = await Promise.all([
-    supabaseAdmin.from('likes').select('liked_user_id').eq('liker_user_id', userId),
-    supabaseAdmin.from('matches').select('user1_id, user2_id').or(`user1_id.eq.${userId},user2_id.eq.${userId}`),
-  ]);
-
-  const excludeIds = new Set([userId]);
-  likedRows?.forEach(r => excludeIds.add(r.liked_user_id));
-  matchRows?.forEach(r => { excludeIds.add(r.user1_id); excludeIds.add(r.user2_id); });
+  // 2. IDs to exclude (self + already liked + matched + actively disliked)
+  const excludeIds = await getExcludedUserIds(userId);
 
   const excludeList = [...excludeIds].join(',');
 
