@@ -50,7 +50,7 @@ module.exports = async function profileRoutes(fastify) {
         required: ['name', 'specialty', 'bio', 'credentials'],
         properties: {
           name:        { type: 'string' },
-          specialty:   { type: 'string' },
+          specialty:   { type: 'array', items: { type: 'string' } },
           bio:         { type: 'string', maxLength: 1000 },
           credentials: { type: 'array', items: { type: 'string' } },
           latitude:    { type: 'number' },
