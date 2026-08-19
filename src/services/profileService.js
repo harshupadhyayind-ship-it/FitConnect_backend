@@ -1,22 +1,39 @@
 const { supabaseAdmin } = require('../config/supabase');
 
-async function getProfile(userId) {
+// Only returned when a user is viewing their own profile — never on someone else's.
+const PRIVATE_FIELDS = [
+  'email', 'phone', 'date_of_birth', 'onboarding_completed',
+  'is_admin', 'is_banned', 'is_suspended', 'suspension_until', 'ban_reason',
+];
+
+async function getProfile(userId, viewerId) {
   const { data, error } = await supabaseAdmin
     .from('profiles')
     .select(`
-      id, name, bio, avatar_url, user_type,
-      fitness_goals, fitness_level, workout_types, gender,
-      height_cm, weight_kg, preferred_gender_filter,
-      specialty, credentials,
+      id, name, email, phone, bio, avatar_url, user_type,
+      date_of_birth, gender,
+      fitness_goals, fitness_level, workout_types,
+      height_cm, weight_kg, preferred_gender_filter, preferred_training_time,
+      specialty, credentials, years_of_experience, session_rate,
+      prompt_philosophy, prompt_best_result, prompt_love_working,
+      rating, reviews_count, target_audience,
       current_streak, longest_streak, total_checkins,
-      latitude, longitude,
+      latitude, longitude, location,
+      onboarding_completed, is_verified, is_admin,
+      is_banned, is_suspended, suspension_until, ban_reason,
       created_at, updated_at
     `)
     .eq('id', userId)
     .single();
 
   if (error) throw Object.assign(new Error(error.message), { status: 404 });
-  return data;
+
+  if (userId === viewerId) return data;
+
+  // Viewing someone else's profile — strip fields that aren't safe to expose publicly.
+  const publicData = { ...data };
+  for (const field of PRIVATE_FIELDS) delete publicData[field];
+  return publicData;
 }
 
 async function onboardIndividual(userId, body) {

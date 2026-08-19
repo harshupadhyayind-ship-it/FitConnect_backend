@@ -5,12 +5,12 @@ module.exports = async function profileRoutes(fastify) {
 
   // GET /api/v1/profiles/me
   fastify.get('/me', auth, async (request) => {
-    return profileService.getProfile(request.user.sub);
+    return profileService.getProfile(request.user.sub, request.user.sub);
   });
 
   // GET /api/v1/profiles/:userId
   fastify.get('/:userId', auth, async (request) => {
-    return profileService.getProfile(request.params.userId);
+    return profileService.getProfile(request.params.userId, request.user.sub);
   });
 
   // POST /api/v1/profiles/onboard/individual
