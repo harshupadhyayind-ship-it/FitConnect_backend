@@ -466,10 +466,13 @@ async function createGroupEvent(userId, groupId, body) {
   if (error) throw new Error(error.message);
 
   // Auto-RSVP the creator
-  await supabaseAdmin
-    .from('group_event_attendees')
-    .insert({ group_event_id: event.id, user_id: userId })
-    .catch(() => {});  // ignore if somehow duplicate
+  try {
+    await supabaseAdmin
+      .from('group_event_attendees')
+      .insert({ group_event_id: event.id, user_id: userId });
+  } catch (_) {
+    // ignore if somehow duplicate
+  }
 
   return { ...event, is_going: true };
 }
