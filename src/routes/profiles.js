@@ -73,6 +73,11 @@ module.exports = async function profileRoutes(fastify) {
     return profileService.getPhotos(request.user.sub);
   });
 
+  // GET /api/v1/profiles/:userId/photos — view another user's full photo gallery
+  fastify.get('/:userId/photos', auth, async (request) => {
+    return profileService.getPhotos(request.params.userId);
+  });
+
   // POST /api/v1/profiles/me/photos — upload 1–6 photos in one request
   fastify.post('/me/photos', auth, async (request, reply) => {
     const parts = request.files();

@@ -117,7 +117,7 @@
               "query": [],
               "variable": []
             },
-            "description": "Returns full profile of the logged-in user."
+            "description": "Returns the full profile of the logged-in user, including private fields that are stripped out when someone else views this same profile via GET /profiles/:userId — email, phone, date_of_birth, onboarding_completed, is_admin, is_banned, is_suspended, suspension_until, ban_reason.\n\nAlso includes everything public: id, name, bio, avatar_url, user_type, gender, fitness_goals, fitness_level, workout_types, height_cm, weight_kg, preferred_gender_filter, preferred_training_time, specialty, credentials, years_of_experience, session_rate, prompt_philosophy, prompt_best_result, prompt_love_working, rating, reviews_count, target_audience, current_streak, longest_streak, total_checkins, latitude, longitude, location, is_verified, created_at, updated_at.\n\nNote: photos are NOT included here — call GET /profiles/me/photos separately."
           }
         },
         {
@@ -149,7 +149,7 @@
                 }
               ]
             },
-            "description": "Returns public profile of any user."
+            "description": "Returns another user's profile — same fields as GET /profiles/me EXCEPT the private ones: email, phone, date_of_birth, onboarding_completed, is_admin, is_banned, is_suspended, suspension_until, ban_reason are stripped out.\n\nNote: photos are NOT included here — call GET /profiles/:userId/photos separately."
           }
         },
         {
@@ -296,6 +296,39 @@
               "variable": []
             },
             "description": "Returns up to 6 ordered profile photos. { photos: [{ id, url, position }] }"
+          }
+        },
+        {
+          "name": "Get Photos by User ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/profiles/:userId/photos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "profiles",
+                ":userId",
+                "photos"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "",
+                  "description": "Firebase UID of target user"
+                }
+              ]
+            },
+            "description": "View another user's full photo gallery (all positions, not just the avatar_url shown on /home, /discovery, etc). Returns { photos: [{ id, url, position }] }"
           }
         },
         {
@@ -802,6 +835,128 @@
             },
             "description": "Full profile of a single professional including bio, credentials, prompts, session_rate."
           }
+        },
+        {
+          "name": "Rate Trainer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/trainers/:trainerId/rate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "trainers",
+                ":trainerId",
+                "rate"
+              ],
+              "variable": [
+                {
+                  "key": "trainerId",
+                  "value": "",
+                  "description": "Firebase UID of the professional"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 5,\n  \"review\": \"Great session, very knowledgeable trainer!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Rate a professional (1–5). Calling again with a new rating updates your existing one — one rating per (trainer, rater) pair.\nrating: integer 1–5 (required)\nreview: string, max 2000 chars (optional)\nAlso recomputes the trainer's denormalised rating/reviews_count."
+          }
+        },
+        {
+          "name": "Get Trainer Ratings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/trainers/:trainerId/ratings?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "trainers",
+                ":trainerId",
+                "ratings"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": ""
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Max 50"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "trainerId",
+                  "value": "",
+                  "description": "Firebase UID of the professional"
+                }
+              ]
+            },
+            "description": "Paginated list of ratings/reviews for a trainer.\nEach item: { id, rating, review, created_at, rater: { id, name, avatar_url } }"
+          }
+        },
+        {
+          "name": "Delete My Rating",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/trainers/:trainerId/rate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "trainers",
+                ":trainerId",
+                "rate"
+              ],
+              "variable": [
+                {
+                  "key": "trainerId",
+                  "value": "",
+                  "description": "Firebase UID of the professional"
+                }
+              ]
+            },
+            "description": "Removes the caller's own rating of this trainer and recomputes the trainer's average."
+          }
         }
       ]
     },
@@ -1009,6 +1164,87 @@
             },
             "body": null,
             "description": "Professional declines a client enquiry. Status changes to declined."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pro",
+      "item": [
+        {
+          "name": "Register Pro Interest",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/pro/interest",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pro",
+                "interest"
+              ],
+              "variable": []
+            },
+            "body": null,
+            "description": "Register interest in FitConnect Pro. Professional accounts only — returns 403 for individual accounts.\nIdempotent: calling again returns the original registration timestamp (200) instead of creating a duplicate (201 on first call)."
+          }
+        },
+        {
+          "name": "Get My Pro Interest Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/pro/interest",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pro",
+                "interest"
+              ],
+              "variable": []
+            },
+            "description": "Check whether the logged-in user has already registered interest.\nResponse: { registered: true/false, registered_at }"
+          }
+        },
+        {
+          "name": "Withdraw Pro Interest",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/pro/interest",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pro",
+                "interest"
+              ],
+              "variable": []
+            },
+            "description": "Withdraw a previously registered interest in Pro."
           }
         }
       ]
@@ -1391,6 +1627,71 @@
           }
         },
         {
+          "name": "Dislike User (Pass)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/matching/dislike/:targetUserId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "matching",
+                "dislike",
+                ":targetUserId"
+              ],
+              "variable": [
+                {
+                  "key": "targetUserId",
+                  "value": "",
+                  "description": "Firebase UID of user to pass on"
+                }
+              ]
+            },
+            "body": null,
+            "description": "Pass on a user — hides them from discovery/home for a 30-day cooldown.\nAlso deletes any pending like you'd sent them so it can't turn into a match later.\nResponse: { disliked: true, hidden_until: <ISO date> }"
+          }
+        },
+        {
+          "name": "Undo Dislike",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/matching/dislike/:targetUserId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "matching",
+                "dislike",
+                ":targetUserId"
+              ],
+              "variable": [
+                {
+                  "key": "targetUserId",
+                  "value": "",
+                  "description": "Firebase UID of the previously-passed user"
+                }
+              ]
+            },
+            "description": "Undo a pass before the 30-day cooldown expires — the user can resurface in discovery again."
+          }
+        },
+        {
           "name": "Get Sent Likes",
           "request": {
             "method": "GET",
@@ -1673,6 +1974,74 @@
               ]
             },
             "description": "Send an image or document in a conversation.\n\nAccepted images: jpg, png, gif, webp, heic\nAccepted files: pdf, doc, docx, xls, xlsx, txt\nMax size: 25 MB\n\nResponse includes message_type ('image'|'file'), file_url (public CDN URL), file_name, file_size, mime_type."
+          }
+        },
+        {
+          "name": "Delete Message",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/messages/:matchId/:messageId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "messages",
+                ":matchId",
+                ":messageId"
+              ],
+              "variable": [
+                {
+                  "key": "matchId",
+                  "value": "",
+                  "description": "UUID of the match"
+                },
+                {
+                  "key": "messageId",
+                  "value": "",
+                  "description": "UUID of the message"
+                }
+              ]
+            },
+            "description": "Delete a single message (and its attachment in storage, if any).\nOnly the sender can delete their own message — returns 403 otherwise."
+          }
+        },
+        {
+          "name": "Delete Chat",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/messages/:matchId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "messages",
+                ":matchId"
+              ],
+              "variable": [
+                {
+                  "key": "matchId",
+                  "value": "",
+                  "description": "UUID of the match"
+                }
+              ]
+            },
+            "description": "Delete an entire chat — all messages in the match plus their attachments in storage.\nEither participant in the match can do this. Does not delete the match itself."
           }
         }
       ]
@@ -2546,14 +2915,14 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"reason\": \"Temporary suspension — review pending\",\n  \"duration_days\": 7\n}",
+              "raw": "{\n  \"reason\": \"Temporary suspension — review pending\",\n  \"suspend_until\": \"2026-08-22T00:00:00Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "description": "Temporarily suspend a user."
+            "description": "Temporarily suspend a user.\nreason and suspend_until (ISO date string) are both required."
           }
         },
         {
@@ -3020,14 +3389,14 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"action\": \"warned\",\n  \"note\": \"User was warned\"\n}",
+              "raw": "{\n  \"action\": \"warn\",\n  \"notes\": \"User was warned\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "description": "Mark a report as resolved with an action taken."
+            "description": "Mark a report as resolved with an action taken.\naction: warn | ban | delete_content | none"
           }
         },
         {
@@ -3563,14 +3932,14 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"New Feature Alert!\",\n  \"body\": \"Check out the new Groups feature in the Social tab!\",\n  \"target\": \"all\",\n  \"data\": {\n    \"screen\": \"Social\"\n  }\n}",
+              "raw": "{\n  \"title\": \"New Feature Alert!\",\n  \"body\": \"Check out the new Groups feature in the Social tab!\",\n  \"filters\": {\n    \"user_type\": \"individual\",\n    \"fitness_level\": \"beginner\",\n    \"fitness_goal\": \"weight_loss\",\n    \"platform\": \"android\"\n  },\n  \"data\": {\n    \"screen\": \"Social\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "description": "Send a push notification to all users or a segment.\ntarget: all | individual | professional"
+            "description": "Send a push notification to all users or a filtered segment. Omit `filters` entirely (or leave it `{}`) to send to everyone.\nfilters.user_type: individual | professional\nfilters.fitness_level: beginner | intermediate | advanced\nfilters.fitness_goal: any goal string, e.g. weight_loss\nfilters.platform: android | ios\ndata: optional key-value payload delivered alongside the notification"
           }
         },
         {
@@ -3610,6 +3979,48 @@
               "variable": []
             },
             "description": "List all previously sent broadcast notifications."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin — Pro Interest",
+      "item": [
+        {
+          "name": "List Pro Interest Registrations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/pro-interest?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "pro-interest"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": ""
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Max 100"
+                }
+              ],
+              "variable": []
+            },
+            "description": "Admin: paginated list of professionals who registered interest in FitConnect Pro, newest first.\nEach item: { id, created_at, user: { id, name, email, phone, avatar_url, specialty, location } }"
           }
         }
       ]
