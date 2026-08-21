@@ -142,13 +142,27 @@ async function acceptEnquiry(trainerId, enquiryId) {
 
   // Create match (deterministic ordering: smaller UUID first)
   const [u1, u2] = [trainerId, enquiry.client_id].sort();
-  const { data: match, error: matchErr } = await supabaseAdmin
-    .from('matches')
-    .upsert({ user1_id: u1, user2_id: u2 }, { onConflict: 'user1_id,user2_id' })
-    .select()
-    .single();
 
-  if (matchErr) throw new Error(matchErr.message);
+  // Check for an existing match in either column ordering first — matches has no
+  // plain UNIQUE(user1_id, user2_id) constraint (see migration 013), only a
+  // functional LEAST/GREATEST index, so upsert(...).onConflict(...) can't target it.
+  const { data: existingMatch } = await supabaseAdmin
+    .from('matches')
+    .select('id')
+    .or(`and(user1_id.eq.${u1},user2_id.eq.${u2}),and(user1_id.eq.${u2},user2_id.eq.${u1})`)
+    .maybeSingle();
+
+  let match = existingMatch;
+  if (!match) {
+    const { data: newMatch, error: matchErr } = await supabaseAdmin
+      .from('matches')
+      .insert({ user1_id: u1, user2_id: u2 })
+      .select()
+      .single();
+
+    if (matchErr) throw new Error(matchErr.message);
+    match = newMatch;
+  }
 
   // Update enquiry status + link match
   await supabaseAdmin
