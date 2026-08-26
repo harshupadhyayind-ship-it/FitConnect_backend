@@ -1169,6 +1169,271 @@
       ]
     },
     {
+      "name": "Training Slots",
+      "item": [
+        {
+          "name": "Book Training Slot",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/training-slots/book",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "training-slots",
+                "book"
+              ],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"professional_id\": \"trainer-firebase-uid\",\n  \"date\": \"2026-09-01\",\n  \"start_time\": \"10:00\",\n  \"end_time\": \"11:00\",\n  \"notes\": \"First session — focus on form\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Book a 1:1 training slot with a professional.\n\nRequired: professional_id, date (YYYY-MM-DD), start_time (HH:MM 24-hour), end_time (HH:MM 24-hour). Optional: notes.\n\nValidates: professional exists and is an onboarded, non-banned/suspended professional; start_time < end_time; not in the past; no overlap with any of the professional's or your own existing booked slots.\n\nOverlap is enforced at the database level (Postgres exclusion constraint), not just in application code, so two people can't win a race to book the same overlapping window — the loser gets a clean 409 instead of a corrupted double-booking.\n\nErrors: 400 validation, 404 professional not found, 409 slot conflict."
+          }
+        },
+        {
+          "name": "Check Availability",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/training-slots/availability?professional_id=trainer-firebase-uid&date=2026-09-01",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "training-slots",
+                "availability"
+              ],
+              "query": [
+                {
+                  "key": "professional_id",
+                  "value": "trainer-firebase-uid",
+                  "description": "Firebase UID of the professional"
+                },
+                {
+                  "key": "date",
+                  "value": "2026-09-01",
+                  "description": "YYYY-MM-DD"
+                }
+              ],
+              "variable": []
+            },
+            "description": "Returns the professional's already-booked time ranges for a given day, so a client can render a slot picker without trial-and-error booking attempts.\nResponse: { professional_id, date, booked_slots: [{ start_time, end_time }] }"
+          }
+        },
+        {
+          "name": "Get Slot Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/training-slots/:slotId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "training-slots",
+                ":slotId"
+              ],
+              "variable": [
+                {
+                  "key": "slotId",
+                  "value": "",
+                  "description": "UUID of the training slot"
+                }
+              ]
+            },
+            "description": "Full detail of a single booking, including professional and user info. Only the user or professional on the booking may view it (403 otherwise)."
+          }
+        },
+        {
+          "name": "Cancel Training Slot",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/training-slots/:slotId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "training-slots",
+                ":slotId"
+              ],
+              "variable": [
+                {
+                  "key": "slotId",
+                  "value": "",
+                  "description": "UUID of the training slot"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Schedule conflict\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Soft-cancels a training slot (status → 'cancelled', booking history is kept, not deleted). Either the booked user or the professional may cancel. body.reason is optional. Returns { cancelled: true } or { already_cancelled: true } if called again."
+          }
+        },
+        {
+          "name": "Get My Training Slots (as User)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/:userId/training-slots?status=upcoming&page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                ":userId",
+                "training-slots"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "upcoming",
+                  "description": "upcoming | past | cancelled | booked | all"
+                },
+                {
+                  "key": "date",
+                  "value": "",
+                  "description": "YYYY-MM-DD — overrides status filter if set (optional)"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": ""
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Max 50"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "",
+                  "description": "Must match your own Firebase UID — set to the same UID as your auth_token"
+                }
+              ]
+            },
+            "description": "All training slots you've booked as a client. You can only view your own (403 if userId doesn't match your token).\nEach slot includes the professional's id, name, avatar_url, specialty, session_rate, location."
+          }
+        },
+        {
+          "name": "Get My Training Slots (as Professional)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/professionals/:professionalId/training-slots?status=upcoming&page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "professionals",
+                ":professionalId",
+                "training-slots"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "upcoming",
+                  "description": "upcoming | past | cancelled | booked | all"
+                },
+                {
+                  "key": "date",
+                  "value": "",
+                  "description": "YYYY-MM-DD — overrides status filter if set (optional)"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": ""
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Max 50"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "professionalId",
+                  "value": "",
+                  "description": "Must match your own Firebase UID — set to the same UID as your auth_token"
+                }
+              ]
+            },
+            "description": "All training slots booked with you as the professional. You can only view your own (403 if professionalId doesn't match your token).\nEach slot includes the client's id, name, avatar_url, fitness_goals, fitness_level."
+          }
+        }
+      ]
+    },
+    {
       "name": "Pro",
       "item": [
         {

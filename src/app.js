@@ -66,6 +66,7 @@ fastify.register(require('./routes/enquiries'),     { prefix: '/api/v1/enquiries
 fastify.register(require('./routes/social'),        { prefix: '/api/v1/social' });
 fastify.register(require('./routes/notifications'), { prefix: '/api/v1/notifications' });
 fastify.register(require('./routes/admin/index'),   { prefix: '/api/v1/admin' });
+fastify.register(require('./routes/trainingSlots'), { prefix: '/api/v1' });
 
 // ─── Health check ─────────────────────────────────────────────────────────────
 fastify.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
