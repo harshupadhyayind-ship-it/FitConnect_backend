@@ -13,6 +13,15 @@ module.exports = async function profileRoutes(fastify) {
     return profileService.getProfile(request.params.userId, request.user.sub);
   });
 
+  // DELETE /api/v1/profiles/me — permanently delete your own account
+  // Removes your storage files, profile row (cascades to related tables),
+  // and your Firebase Auth account. Irreversible — the client should confirm
+  // with the user before calling this.
+  fastify.delete('/me', auth, async (request, reply) => {
+    const result = await profileService.deleteAccount(request.user.sub);
+    return reply.send(result);
+  });
+
   // POST /api/v1/profiles/onboard/individual
   fastify.post('/onboard/individual', {
     ...auth,

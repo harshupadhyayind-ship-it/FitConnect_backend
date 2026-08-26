@@ -1,4 +1,5 @@
 const { supabaseAdmin } = require('../config/supabase');
+const { deleteFirebaseUser } = require('./authService');
 
 // Only returned when a user is viewing their own profile — never on someone else's.
 const PRIVATE_FIELDS = [
@@ -504,9 +505,45 @@ async function updateDeviceToken(userId, { token, platform }) {
   return { message: 'Device token updated' };
 }
 
+// ── Account Deletion ──────────────────────────────────────────────────────────
+
+/**
+ * Permanently deletes the caller's own account: their storage files (photos,
+ * certification documents), profile row (cascades to checkins, badges, likes,
+ * matches, messages, device tokens, enquiries, group memberships, etc. via FK),
+ * and the underlying Firebase Auth account.
+ *
+ * DB cascade only removes rows, not the actual files in storage — so those are
+ * cleaned up first, before the rows that reference their paths are gone.
+ */
+async function deleteAccount(userId) {
+  const { data: photoFiles } = await supabaseAdmin.storage.from('profile-photos').list(`photos/${userId}`);
+  if (photoFiles?.length) {
+    await supabaseAdmin.storage
+      .from('profile-photos')
+      .remove(photoFiles.map(f => `photos/${userId}/${f.name}`))
+      .catch(() => {});
+  }
+
+  const { data: certFiles } = await supabaseAdmin.storage.from('certifications').list(`certifications/${userId}`);
+  if (certFiles?.length) {
+    await supabaseAdmin.storage
+      .from('certifications')
+      .remove(certFiles.map(f => `certifications/${userId}/${f.name}`))
+      .catch(() => {});
+  }
+
+  const { error } = await supabaseAdmin.from('profiles').delete().eq('id', userId);
+  if (error) throw new Error(error.message);
+
+  await deleteFirebaseUser(userId);
+
+  return { deleted: true };
+}
+
 module.exports = {
   getProfile, onboardIndividual, onboardProfessional, updateProfile,
   getPhotos, uploadPhoto, replacePhoto, replacePhotos, deletePhoto, reorderPhotos,
   addCertification, getCertifications, deleteCertification,
-  updateDeviceToken,
+  updateDeviceToken, deleteAccount,
 };

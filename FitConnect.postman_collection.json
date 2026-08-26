@@ -722,6 +722,31 @@
             },
             "description": "Register FCM (Android) or APNs (iOS) push token.\nplatform: android | ios\nCalled on app launch after sign-in."
           }
+        },
+        {
+          "name": "Delete My Account",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/profiles/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "profiles",
+                "me"
+              ],
+              "variable": []
+            },
+            "description": "Permanently deletes the logged-in user's own account: their storage files (profile photos, certification documents), profile row (cascades to checkins, badges, likes, matches, messages, device tokens, enquiries, group memberships, etc. via FK), and their Firebase Auth account.\n\nIrreversible — the mobile client should show a confirmation prompt before calling this. Returns { deleted: true }."
+          }
         }
       ]
     },
